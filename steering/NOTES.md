@@ -92,3 +92,9 @@ success_step, steps, wall time, steps/sec, policy time, video path).
 ## Things that broke / gotchas
 - `import omnigibson` blocks on an Isaac Sim EULA prompt unless `OMNI_KIT_ACCEPT_EULA=YES`.
 - Remote zip listing from the tail only shows part of a large zip's central directory; unzip to be sure.
+- 2026-11-02: first rollout aborted during Isaac Sim launch (`terminate ... std::system_error: Invalid argument`
+  right after "app ready", in SimulationApp._wait_for_viewport), preceded by ~1100 carb
+  "Failed to create change watch ... errno=28/No space left on device". errno 28 here = inotify watch limit,
+  not disk. fs.inotify.max_user_watches = 65536; VS Code held ~46.7k watches (it watches the 41k dirs under
+  datasets/behavior-1k-assets) and claude-desktop ~18k. Fix: raise the limit
+  (`sudo sysctl fs.inotify.max_user_watches=524288`) and/or exclude datasets/ from the VS Code file watcher.
