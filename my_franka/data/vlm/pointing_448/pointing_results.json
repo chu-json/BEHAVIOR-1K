@@ -1,0 +1,722 @@
+[
+ {
+  "task": "apple",
+  "layout": 0,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 9.9,
+  "geometry_err_cm": 3.7,
+  "truth_in_view": true
+ },
+ {
+  "task": "apple",
+  "layout": 0,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 4.4,
+  "geometry_err_cm": 3.8,
+  "truth_in_view": true
+ },
+ {
+  "task": "apple",
+  "layout": 1,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.5,
+  "geometry_err_cm": 3.5,
+  "truth_in_view": true
+ },
+ {
+  "task": "apple",
+  "layout": 1,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 4.0,
+  "geometry_err_cm": 3.8,
+  "truth_in_view": true
+ },
+ {
+  "task": "apple",
+  "layout": 2,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.4,
+  "geometry_err_cm": 3.5,
+  "truth_in_view": true
+ },
+ {
+  "task": "apple",
+  "layout": 2,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.8,
+  "geometry_err_cm": 3.8,
+  "truth_in_view": true
+ },
+ {
+  "task": "orange",
+  "layout": 0,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 5.4,
+  "geometry_err_cm": 5.5,
+  "truth_in_view": true
+ },
+ {
+  "task": "orange",
+  "layout": 0,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 11.8,
+  "geometry_err_cm": 5.4,
+  "truth_in_view": true
+ },
+ {
+  "task": "orange",
+  "layout": 1,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 9.8,
+  "geometry_err_cm": 5.3,
+  "truth_in_view": true
+ },
+ {
+  "task": "orange",
+  "layout": 1,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 5.6,
+  "geometry_err_cm": 5.5,
+  "truth_in_view": true
+ },
+ {
+  "task": "orange",
+  "layout": 2,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 5.4,
+  "geometry_err_cm": 5.4,
+  "truth_in_view": true
+ },
+ {
+  "task": "orange",
+  "layout": 2,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 5.2,
+  "geometry_err_cm": 5.4,
+  "truth_in_view": true
+ },
+ {
+  "task": "banana",
+  "layout": 0,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.9,
+  "geometry_err_cm": 0.9,
+  "truth_in_view": true
+ },
+ {
+  "task": "banana",
+  "layout": 0,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 4.1,
+  "geometry_err_cm": 1.7,
+  "truth_in_view": true
+ },
+ {
+  "task": "banana",
+  "layout": 1,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 8.4,
+  "geometry_err_cm": 1.0,
+  "truth_in_view": true
+ },
+ {
+  "task": "banana",
+  "layout": 1,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 2.8,
+  "geometry_err_cm": 1.7,
+  "truth_in_view": true
+ },
+ {
+  "task": "banana",
+  "layout": 2,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 8.4,
+  "geometry_err_cm": 1.0,
+  "truth_in_view": true
+ },
+ {
+  "task": "banana",
+  "layout": 2,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 2.3,
+  "geometry_err_cm": 1.7,
+  "truth_in_view": true
+ },
+ {
+  "task": "lemon",
+  "layout": 0,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 8.6,
+  "geometry_err_cm": 3.3,
+  "truth_in_view": true
+ },
+ {
+  "task": "lemon",
+  "layout": 0,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 14.2,
+  "geometry_err_cm": 3.6,
+  "truth_in_view": true
+ },
+ {
+  "task": "lemon",
+  "layout": 1,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.5,
+  "geometry_err_cm": 3.6,
+  "truth_in_view": true
+ },
+ {
+  "task": "lemon",
+  "layout": 1,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.6,
+  "geometry_err_cm": 3.7,
+  "truth_in_view": true
+ },
+ {
+  "task": "lemon",
+  "layout": 2,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 9.6,
+  "geometry_err_cm": 3.6,
+  "truth_in_view": true
+ },
+ {
+  "task": "lemon",
+  "layout": 2,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.5,
+  "geometry_err_cm": 3.6,
+  "truth_in_view": true
+ },
+ {
+  "task": "pear",
+  "layout": 0,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.7,
+  "geometry_err_cm": 3.6,
+  "truth_in_view": true
+ },
+ {
+  "task": "pear",
+  "layout": 0,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 4.3,
+  "geometry_err_cm": 4.1,
+  "truth_in_view": true
+ },
+ {
+  "task": "pear",
+  "layout": 1,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.6,
+  "geometry_err_cm": 3.7,
+  "truth_in_view": true
+ },
+ {
+  "task": "pear",
+  "layout": 1,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 4.3,
+  "geometry_err_cm": 4.1,
+  "truth_in_view": true
+ },
+ {
+  "task": "pear",
+  "layout": 2,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 4.4,
+  "geometry_err_cm": 3.8,
+  "truth_in_view": true
+ },
+ {
+  "task": "pear",
+  "layout": 2,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 9.1,
+  "geometry_err_cm": 4.1,
+  "truth_in_view": true
+ },
+ {
+  "task": "potato",
+  "layout": 0,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 7.8,
+  "geometry_err_cm": 3.4,
+  "truth_in_view": true
+ },
+ {
+  "task": "potato",
+  "layout": 0,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 6.8,
+  "geometry_err_cm": 3.3,
+  "truth_in_view": true
+ },
+ {
+  "task": "potato",
+  "layout": 1,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 10.4,
+  "geometry_err_cm": 3.6,
+  "truth_in_view": true
+ },
+ {
+  "task": "potato",
+  "layout": 1,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 4.2,
+  "geometry_err_cm": 3.5,
+  "truth_in_view": true
+ },
+ {
+  "task": "potato",
+  "layout": 2,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.6,
+  "geometry_err_cm": 3.7,
+  "truth_in_view": true
+ },
+ {
+  "task": "potato",
+  "layout": 2,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.3,
+  "geometry_err_cm": 3.4,
+  "truth_in_view": true
+ },
+ {
+  "task": "carrot",
+  "layout": 0,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 2.1,
+  "geometry_err_cm": 1.8,
+  "truth_in_view": true
+ },
+ {
+  "task": "carrot",
+  "layout": 0,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 4.7,
+  "geometry_err_cm": 1.9,
+  "truth_in_view": true
+ },
+ {
+  "task": "carrot",
+  "layout": 1,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 2.7,
+  "geometry_err_cm": 2.1,
+  "truth_in_view": true
+ },
+ {
+  "task": "carrot",
+  "layout": 1,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 2.6,
+  "geometry_err_cm": 1.9,
+  "truth_in_view": true
+ },
+ {
+  "task": "carrot",
+  "layout": 2,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 2.6,
+  "geometry_err_cm": 2.2,
+  "truth_in_view": true
+ },
+ {
+  "task": "carrot",
+  "layout": 2,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 2.1,
+  "geometry_err_cm": 1.9,
+  "truth_in_view": true
+ },
+ {
+  "task": "mug",
+  "layout": 0,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 6.9,
+  "geometry_err_cm": 4.6,
+  "truth_in_view": true
+ },
+ {
+  "task": "mug",
+  "layout": 0,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 2.2,
+  "geometry_err_cm": 2.3,
+  "truth_in_view": true
+ },
+ {
+  "task": "mug",
+  "layout": 1,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 4.2,
+  "geometry_err_cm": 4.4,
+  "truth_in_view": true
+ },
+ {
+  "task": "mug",
+  "layout": 1,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 2.4,
+  "geometry_err_cm": 2.4,
+  "truth_in_view": true
+ },
+ {
+  "task": "mug",
+  "layout": 2,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 4.1,
+  "geometry_err_cm": 4.4,
+  "truth_in_view": true
+ },
+ {
+  "task": "mug",
+  "layout": 2,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.3,
+  "geometry_err_cm": 2.3,
+  "truth_in_view": true
+ },
+ {
+  "task": "coffee_cup",
+  "layout": 0,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 7.8,
+  "geometry_err_cm": 4.3,
+  "truth_in_view": true
+ },
+ {
+  "task": "coffee_cup",
+  "layout": 0,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 7.7,
+  "geometry_err_cm": 3.1,
+  "truth_in_view": true
+ },
+ {
+  "task": "coffee_cup",
+  "layout": 1,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 10.0,
+  "geometry_err_cm": 4.4,
+  "truth_in_view": true
+ },
+ {
+  "task": "coffee_cup",
+  "layout": 1,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 1.6,
+  "geometry_err_cm": 3.1,
+  "truth_in_view": true
+ },
+ {
+  "task": "coffee_cup",
+  "layout": 2,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 4.1,
+  "geometry_err_cm": 4.4,
+  "truth_in_view": true
+ },
+ {
+  "task": "coffee_cup",
+  "layout": 2,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 2.5,
+  "geometry_err_cm": 3.1,
+  "truth_in_view": true
+ },
+ {
+  "task": "can_of_soda",
+  "layout": 0,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 4.5,
+  "geometry_err_cm": 4.4,
+  "truth_in_view": true
+ },
+ {
+  "task": "can_of_soda",
+  "layout": 0,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 9.9,
+  "geometry_err_cm": 5.9,
+  "truth_in_view": true
+ },
+ {
+  "task": "can_of_soda",
+  "layout": 1,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 4.0,
+  "geometry_err_cm": 4.2,
+  "truth_in_view": true
+ },
+ {
+  "task": "can_of_soda",
+  "layout": 1,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 5.8,
+  "geometry_err_cm": 6.0,
+  "truth_in_view": true
+ },
+ {
+  "task": "can_of_soda",
+  "layout": 2,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 4.7,
+  "geometry_err_cm": 4.2,
+  "truth_in_view": true
+ },
+ {
+  "task": "can_of_soda",
+  "layout": 2,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 6.0,
+  "geometry_err_cm": 5.9,
+  "truth_in_view": true
+ },
+ {
+  "task": "toy_figure",
+  "layout": 0,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 14.6,
+  "geometry_err_cm": 5.0,
+  "truth_in_view": true
+ },
+ {
+  "task": "toy_figure",
+  "layout": 0,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.6,
+  "geometry_err_cm": 0.7,
+  "truth_in_view": true
+ },
+ {
+  "task": "toy_figure",
+  "layout": 1,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 8.2,
+  "geometry_err_cm": 4.7,
+  "truth_in_view": true
+ },
+ {
+  "task": "toy_figure",
+  "layout": 1,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 1.9,
+  "geometry_err_cm": 0.7,
+  "truth_in_view": true
+ },
+ {
+  "task": "toy_figure",
+  "layout": 2,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 6.9,
+  "geometry_err_cm": 4.5,
+  "truth_in_view": true
+ },
+ {
+  "task": "toy_figure",
+  "layout": 2,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.4,
+  "geometry_err_cm": 0.7,
+  "truth_in_view": true
+ },
+ {
+  "task": "sponge",
+  "layout": 0,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 10.0,
+  "geometry_err_cm": 2.8,
+  "truth_in_view": true
+ },
+ {
+  "task": "sponge",
+  "layout": 0,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 7.0,
+  "geometry_err_cm": 1.2,
+  "truth_in_view": true
+ },
+ {
+  "task": "sponge",
+  "layout": 1,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 2.7,
+  "geometry_err_cm": 3.2,
+  "truth_in_view": true
+ },
+ {
+  "task": "sponge",
+  "layout": 1,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 1.7,
+  "geometry_err_cm": 1.2,
+  "truth_in_view": true
+ },
+ {
+  "task": "sponge",
+  "layout": 2,
+  "cam": "ext",
+  "found": true,
+  "box_contains_truth": false,
+  "err_cm": 10.9,
+  "geometry_err_cm": 3.4,
+  "truth_in_view": true
+ },
+ {
+  "task": "sponge",
+  "layout": 2,
+  "cam": "wrist",
+  "found": true,
+  "box_contains_truth": true,
+  "err_cm": 3.1,
+  "geometry_err_cm": 1.2,
+  "truth_in_view": true
+ }
+]

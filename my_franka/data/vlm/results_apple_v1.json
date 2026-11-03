@@ -1,0 +1,139 @@
+{
+ "args": {
+  "mode": "eval",
+  "tasks": [
+   "apple"
+  ],
+  "layouts": 8,
+  "video_layouts": [
+   0,
+   1
+  ],
+  "tag": "apple_v1",
+  "seed": 50000000
+ },
+ "results": {
+  "apple": [
+   {
+    "attempts": 1,
+    "vlm_said_holding": true,
+    "est_err_ext_cm": 3.7,
+    "est_err_wrist_cm": 3.8,
+    "failure": null,
+    "success": true,
+    "steps": 142,
+    "lifted_cm": 13.8,
+    "closest_cm": 2.0,
+    "vlm_calls": 3,
+    "vlm_seconds": 4.4,
+    "vlm_judgement_correct": true,
+    "layout": 0
+   },
+   {
+    "attempts": 2,
+    "vlm_said_holding": false,
+    "est_err_ext_cm": 3.5,
+    "est_err_wrist_cm": 3.9,
+    "failure": "missed the grasp",
+    "success": false,
+    "steps": 400,
+    "lifted_cm": -0.0,
+    "closest_cm": 5.8,
+    "vlm_calls": 6,
+    "vlm_seconds": 6.4,
+    "vlm_judgement_correct": true,
+    "layout": 1
+   },
+   {
+    "attempts": 1,
+    "vlm_said_holding": true,
+    "est_err_ext_cm": 3.5,
+    "est_err_wrist_cm": 2.4,
+    "failure": null,
+    "success": true,
+    "steps": 81,
+    "lifted_cm": 15.0,
+    "closest_cm": 1.0,
+    "vlm_calls": 3,
+    "vlm_seconds": 3.2,
+    "vlm_judgement_correct": true,
+    "layout": 2
+   },
+   {
+    "attempts": 1,
+    "vlm_said_holding": true,
+    "est_err_ext_cm": 3.5,
+    "est_err_wrist_cm": 3.9,
+    "failure": null,
+    "success": true,
+    "steps": 193,
+    "lifted_cm": 12.9,
+    "closest_cm": 2.5,
+    "vlm_calls": 3,
+    "vlm_seconds": 3.4,
+    "vlm_judgement_correct": true,
+    "layout": 3
+   },
+   {
+    "attempts": 1,
+    "vlm_said_holding": true,
+    "est_err_ext_cm": 4.5,
+    "est_err_wrist_cm": 3.6,
+    "failure": null,
+    "success": true,
+    "steps": 251,
+    "lifted_cm": 13.3,
+    "closest_cm": 2.0,
+    "vlm_calls": 3,
+    "vlm_seconds": 3.4,
+    "vlm_judgement_correct": true,
+    "layout": 4
+   },
+   {
+    "attempts": 1,
+    "vlm_said_holding": true,
+    "est_err_ext_cm": 4.3,
+    "est_err_wrist_cm": 3.7,
+    "failure": null,
+    "success": true,
+    "steps": 149,
+    "lifted_cm": 13.6,
+    "closest_cm": 1.8,
+    "vlm_calls": 3,
+    "vlm_seconds": 3.6,
+    "vlm_judgement_correct": true,
+    "layout": 5
+   },
+   {
+    "attempts": 1,
+    "vlm_said_holding": true,
+    "est_err_ext_cm": 3.5,
+    "est_err_wrist_cm": 3.2,
+    "failure": null,
+    "success": true,
+    "steps": 80,
+    "lifted_cm": 14.3,
+    "closest_cm": 1.4,
+    "vlm_calls": 3,
+    "vlm_seconds": 3.2,
+    "vlm_judgement_correct": true,
+    "layout": 6
+   },
+   {
+    "attempts": 1,
+    "vlm_said_holding": true,
+    "est_err_ext_cm": 3.6,
+    "est_err_wrist_cm": 3.9,
+    "failure": null,
+    "success": true,
+    "steps": 165,
+    "lifted_cm": 12.9,
+    "closest_cm": 2.4,
+    "vlm_calls": 3,
+    "vlm_seconds": 3.3,
+    "vlm_judgement_correct": true,
+    "layout": 7
+   }
+  ]
+ }
+}

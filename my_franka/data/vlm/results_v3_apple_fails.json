@@ -1,0 +1,142 @@
+{
+ "args": {
+  "mode": "eval",
+  "tasks": [
+   "apple"
+  ],
+  "layouts": 8,
+  "video_layouts": [
+   11
+  ],
+  "tag": "v3_apple_fails",
+  "trust_gripper": 1,
+  "max_attempts": 3,
+  "stall_recovery": 1,
+  "layout_ids": [
+   1,
+   9,
+   11,
+   23,
+   30,
+   32,
+   48
+  ],
+  "seed": 50000000
+ },
+ "results": {
+  "apple": [
+   {
+    "attempts": 2,
+    "vlm_said_holding": true,
+    "est_err_ext_cm": 4.5,
+    "est_err_wrist_cm": 3.7,
+    "failure": null,
+    "success": true,
+    "steps": 400,
+    "lifted_cm": 7.5,
+    "closest_cm": 2.0,
+    "stalls_recovered": 3,
+    "vlm_calls": 6,
+    "vlm_seconds": 7.2,
+    "vlm_judgement_correct": true,
+    "layout": 1
+   },
+   {
+    "attempts": 1,
+    "vlm_said_holding": true,
+    "est_err_ext_cm": 5.2,
+    "est_err_wrist_cm": 3.7,
+    "failure": null,
+    "success": true,
+    "steps": 259,
+    "lifted_cm": 13.9,
+    "closest_cm": 1.9,
+    "stalls_recovered": 0,
+    "vlm_calls": 3,
+    "vlm_seconds": 3.2,
+    "vlm_judgement_correct": true,
+    "layout": 9
+   },
+   {
+    "attempts": 2,
+    "vlm_said_holding": false,
+    "est_err_ext_cm": 3.5,
+    "est_err_wrist_cm": 4.0,
+    "failure": "missed the grasp",
+    "success": false,
+    "steps": 400,
+    "lifted_cm": 0.0,
+    "closest_cm": 11.9,
+    "stalls_recovered": 0,
+    "vlm_calls": 6,
+    "vlm_seconds": 6.6,
+    "vlm_judgement_correct": true,
+    "layout": 11
+   },
+   {
+    "attempts": 2,
+    "vlm_said_holding": false,
+    "est_err_ext_cm": 3.5,
+    "est_err_wrist_cm": 4.0,
+    "failure": "missed the grasp",
+    "success": false,
+    "steps": 400,
+    "lifted_cm": 0.0,
+    "closest_cm": 7.0,
+    "stalls_recovered": 0,
+    "vlm_calls": 6,
+    "vlm_seconds": 6.5,
+    "vlm_judgement_correct": true,
+    "layout": 23
+   },
+   {
+    "attempts": 1,
+    "vlm_said_holding": true,
+    "est_err_ext_cm": 3.5,
+    "est_err_wrist_cm": 2.2,
+    "failure": null,
+    "success": true,
+    "steps": 134,
+    "lifted_cm": 16.2,
+    "closest_cm": 1.6,
+    "stalls_recovered": 1,
+    "vlm_calls": 3,
+    "vlm_seconds": 3.3,
+    "vlm_judgement_correct": true,
+    "layout": 30
+   },
+   {
+    "attempts": 2,
+    "vlm_said_holding": false,
+    "est_err_ext_cm": 3.5,
+    "est_err_wrist_cm": 4.0,
+    "failure": "missed the grasp",
+    "success": false,
+    "steps": 400,
+    "lifted_cm": 0.0,
+    "closest_cm": 10.7,
+    "stalls_recovered": 0,
+    "vlm_calls": 6,
+    "vlm_seconds": 6.5,
+    "vlm_judgement_correct": true,
+    "layout": 32
+   },
+   {
+    "attempts": 2,
+    "vlm_said_holding": false,
+    "est_err_ext_cm": 3.6,
+    "est_err_wrist_cm": 3.9,
+    "failure": "missed the grasp",
+    "success": false,
+    "steps": 400,
+    "lifted_cm": -0.0,
+    "closest_cm": 5.7,
+    "stalls_recovered": 0,
+    "vlm_calls": 6,
+    "vlm_seconds": 6.4,
+    "vlm_judgement_correct": true,
+    "layout": 48
+   }
+  ]
+ }
+}

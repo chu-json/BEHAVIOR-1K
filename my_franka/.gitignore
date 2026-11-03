@@ -1,0 +1,26 @@
+# Large / regenerable artifacts stay out of git (the code re-creates or re-downloads them).
+__pycache__/
+*.pyc
+*.log
+*.hdf5
+*.hdf5.part
+*.safetensors
+
+# demonstration data and datasets (collect with step5/step9, convert with step10)
+data/vision/
+data/lerobot/
+data/demos_*
+data/v1/demos_*
+
+# training checkpoints (diffusion policy, VLA-0-style LoRA adapters)
+data/train/
+data/vla0/*/adapter/
+
+# downloaded models and data (see README: "External downloads")
+data/pi0/pi05_droid/
+data/pi0/droid_100/
+data/pi0/droid_real/
+data/pi0/paligemma_tokenizer.model
+data/pi0/droid_norm_stats.json
+data/vlm/Qwen2.5-VL-7B-Instruct/
+data/vlm/Qwen2.5-VL-3B-Instruct/

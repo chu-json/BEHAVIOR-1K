@@ -1,0 +1,122 @@
+[
+ {
+  "ep": 0,
+  "success": false,
+  "steps": 400,
+  "calls": 50,
+  "unparseable": 0,
+  "first_close": 40,
+  "close_dist_cm": 10.9,
+  "ever_grasped": false,
+  "max_eef_z_after_grasp": null,
+  "seconds_per_call": 3.71
+ },
+ {
+  "ep": 1,
+  "success": false,
+  "steps": 400,
+  "calls": 50,
+  "unparseable": 0,
+  "first_close": 170,
+  "close_dist_cm": 12.7,
+  "ever_grasped": false,
+  "max_eef_z_after_grasp": null,
+  "seconds_per_call": 3.96
+ },
+ {
+  "ep": 2,
+  "success": true,
+  "steps": 67,
+  "calls": 9,
+  "unparseable": 0,
+  "first_close": 40,
+  "close_dist_cm": 0.6,
+  "ever_grasped": true,
+  "max_eef_z_after_grasp": 0.173,
+  "seconds_per_call": 4.14
+ },
+ {
+  "ep": 3,
+  "success": true,
+  "steps": 133,
+  "calls": 17,
+  "unparseable": 0,
+  "first_close": 105,
+  "close_dist_cm": 0.7,
+  "ever_grasped": true,
+  "max_eef_z_after_grasp": 0.18,
+  "seconds_per_call": 4.24
+ },
+ {
+  "ep": 4,
+  "success": false,
+  "steps": 400,
+  "calls": 50,
+  "unparseable": 0,
+  "first_close": 128,
+  "close_dist_cm": 9.7,
+  "ever_grasped": false,
+  "max_eef_z_after_grasp": null,
+  "seconds_per_call": 3.88
+ },
+ {
+  "ep": 5,
+  "success": false,
+  "steps": 400,
+  "calls": 50,
+  "unparseable": 0,
+  "first_close": 72,
+  "close_dist_cm": 5.2,
+  "ever_grasped": false,
+  "max_eef_z_after_grasp": null,
+  "seconds_per_call": 3.84
+ },
+ {
+  "ep": 6,
+  "success": true,
+  "steps": 74,
+  "calls": 10,
+  "unparseable": 0,
+  "first_close": 48,
+  "close_dist_cm": 0.2,
+  "ever_grasped": true,
+  "max_eef_z_after_grasp": 0.186,
+  "seconds_per_call": 4.15
+ },
+ {
+  "ep": 7,
+  "success": false,
+  "steps": 400,
+  "calls": 50,
+  "unparseable": 0,
+  "first_close": 97,
+  "close_dist_cm": 14.2,
+  "ever_grasped": false,
+  "max_eef_z_after_grasp": null,
+  "seconds_per_call": 3.83
+ },
+ {
+  "ep": 8,
+  "success": false,
+  "steps": 400,
+  "calls": 50,
+  "unparseable": 0,
+  "first_close": 64,
+  "close_dist_cm": 5.2,
+  "ever_grasped": false,
+  "max_eef_z_after_grasp": null,
+  "seconds_per_call": 3.76
+ },
+ {
+  "ep": 9,
+  "success": false,
+  "steps": 400,
+  "calls": 50,
+  "unparseable": 0,
+  "first_close": 122,
+  "close_dist_cm": 24.1,
+  "ever_grasped": false,
+  "max_eef_z_after_grasp": null,
+  "seconds_per_call": 3.85
+ }
+]

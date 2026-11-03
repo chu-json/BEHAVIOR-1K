@@ -1,0 +1,115 @@
+{
+ "args": {
+  "tasks": null,
+  "layouts": 8,
+  "max_steps": 300,
+  "open_loop": 8,
+  "joint_delta": 0.2,
+  "home": "droid",
+  "hfov": null,
+  "gripper": "robotiq",
+  "video_layouts": [
+   0
+  ],
+  "tag": "corrected",
+  "seed": 50000000
+ },
+ "prompt": {
+  "apple": "pick up the apple",
+  "orange": "pick up the orange",
+  "banana": "pick up the banana",
+  "lemon": "pick up the lemon",
+  "pear": "pick up the pear",
+  "potato": "pick up the potato",
+  "carrot": "pick up the carrot",
+  "mug": "pick up the mug",
+  "coffee_cup": "pick up the coffee cup",
+  "can_of_soda": "pick up the can of soda",
+  "toy_figure": "pick up the toy figure",
+  "sponge": "pick up the sponge"
+ },
+ "results": {
+  "apple": [
+   {
+    "success": false,
+    "steps": 300,
+    "min_dist_cm": 17.6,
+    "max_lift_cm": 0.0,
+    "first_close": 89,
+    "close_dist_cm": 42.7,
+    "tracking": 0.87,
+    "layout": 0
+   },
+   {
+    "success": false,
+    "steps": 300,
+    "min_dist_cm": 30.2,
+    "max_lift_cm": 0.0,
+    "first_close": 1,
+    "close_dist_cm": 33.9,
+    "tracking": 0.81,
+    "layout": 1
+   },
+   {
+    "success": false,
+    "steps": 300,
+    "min_dist_cm": 33.8,
+    "max_lift_cm": 0.0,
+    "first_close": 25,
+    "close_dist_cm": 60.4,
+    "tracking": 0.79,
+    "layout": 2
+   },
+   {
+    "success": false,
+    "steps": 300,
+    "min_dist_cm": 14.4,
+    "max_lift_cm": 0.0,
+    "first_close": 33,
+    "close_dist_cm": 52.3,
+    "tracking": 0.95,
+    "layout": 3
+   },
+   {
+    "success": false,
+    "steps": 300,
+    "min_dist_cm": 35.3,
+    "max_lift_cm": 0.0,
+    "first_close": 1,
+    "close_dist_cm": 36.0,
+    "tracking": 0.38,
+    "layout": 4
+   },
+   {
+    "success": false,
+    "steps": 300,
+    "min_dist_cm": 14.4,
+    "max_lift_cm": 0.0,
+    "first_close": 25,
+    "close_dist_cm": 48.9,
+    "tracking": 0.92,
+    "layout": 5
+   },
+   {
+    "success": false,
+    "steps": 300,
+    "min_dist_cm": 22.2,
+    "max_lift_cm": 0.0,
+    "first_close": 1,
+    "close_dist_cm": 32.2,
+    "tracking": 0.92,
+    "layout": 6
+   },
+   {
+    "success": false,
+    "steps": 300,
+    "min_dist_cm": 15.1,
+    "max_lift_cm": 0.0,
+    "first_close": 7,
+    "close_dist_cm": 23.6,
+    "tracking": 0.93,
+    "layout": 7
+   }
+  ]
+ }
+}
