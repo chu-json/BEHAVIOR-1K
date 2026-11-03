@@ -25,6 +25,7 @@ Goal: run Comet (2nd place, 2025 BEHAVIOR Challenge, pi0.5) on `turning_on_radio
 1. Module path: Comet imports `omnigibson.learning.*`; fork renamed it to `omnigibson.eval.*`.
 2. Obs batching: fork sends every obs with a leading num_envs dim (1, ...). Comet's wrapper expects unbatched.
 3. Proprio `base_qvel`: v3.7.2 = world-frame virtual-joint velocity; fork rotates it into the robot frame.
+   Verified on 2025 radio demos: |base_qvel - world d(pos)/dt| = 0.013 vs 0.107 for robot frame.
    Same 61-d layout / indices otherwise.
 4. Images: Comet authors recommend rendering full-res (head 720x720, wrists 480x480) then
    resize_with_pad to 224 on the server. Fork default renders 224x224 directly.
@@ -34,9 +35,60 @@ Goal: run Comet (2nd place, 2025 BEHAVIOR Challenge, pi0.5) on `turning_on_radio
    byte-identical in the 2025 and 2026 instance zips, so these can be loaded with fork `--mode train`.
    None of them are among Comet's 200 training-demo instances.
 7. Sim/assets: Isaac Sim 4.5 + assets 3.7 -> Isaac Sim 5.1 + assets 3.9. Can't fix; expect some drift.
-8. Comet's submission zip has no `assets/` (norm stats). Use
-   `sunshk/openpi_comet/pi05-b1kpt12-cs32/assets/...` (radio is in pt12's task set).
+8. Norm stats: the radio checkpoint DOES ship `assets/behavior-1k/2025-challenge-demos/norm_stats.json`
+   (my first remote zip listing missed it). openpi loads it automatically. See "Norm stats" below.
+9. Proprio size: 2025 datasets/eval used a 256-d proprio vector; the fork's eval uses 61-d. Comet only
+   reads base_qvel / trunk / arm qpos / gripper qpos, so the server shim passes the fork's 61-d indices.
 - Same in both: controllers, reset joint pose, head aperture 40, 23-d action layout, robot start poses.
 
 ## Reference numbers
 - Comet authors (GitHub issue #18/#19): radio success varies 40-80% across reruns; ~70% after RFT.
+
+## Setup (reproduce)
+```bash
+# a. 2026 task instances (fork eval imports their metadata; ~110 MB)
+OMNI_KIT_ACCEPT_EULA=YES conda run -n behavior python -c \
+  "from omnigibson.utils.asset_utils import download_2026_challenge_task_instances as d; d()"
+# b. Comet env (outside repo), uv 0.13.7
+curl -LsSf https://astral.sh/uv/install.sh | sh
+git clone https://github.com/mli0603/openpi-comet /home/behavior/ext/openpi-comet   # @4bb2aa7
+cd /home/behavior/ext/openpi-comet && GIT_LFS_SKIP_SMUDGE=1 uv sync && GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
+# (NOT needed: installing BEHAVIOR/OmniGibson into Comet's venv; steering/comet_server.py shims it.)
+# c. radio checkpoint only (12.4 GB zip -> 12 GB dir)
+mkdir -p /home/behavior/ext/ckpt && cd /home/behavior/ext/ckpt
+curl -L -O https://huggingface.co/sunshk/comet_submission/resolve/main/pi05-turning_on_radio-sft.zip
+unzip -q pi05-turning_on_radio-sft.zip && rm pi05-turning_on_radio-sft.zip
+```
+Disk used: ckpt 12 GB, Comet venv 7.4 GB, radio demo parquet+meta ~1 GB (norm-stats check only).
+
+## Running
+```bash
+# terminal 1: policy server (~11 GB GPU with mem fraction 0.45; takes ~2-3 min to load)
+cd /home/behavior/ext/openpi-comet
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.45 .venv/bin/python /home/behavior/BEHAVIOR-1K/steering/comet_server.py \
+    --ckpt /home/behavior/ext/ckpt/pi05-turning_on_radio-sft --port 8000
+# terminal 2: rollouts (repo root, behavior env)
+OMNIGIBSON_HEADLESS=1 OMNI_KIT_ACCEPT_EULA=YES python steering/run_rollouts.py \
+    --instances 242 --seeds 0 --max-steps 4299 --resolution full --output-dir <dir>
+```
+`run_rollouts.py` appends one row per rollout to `<dir>/rollouts.csv` (instance, seed, success, q_score,
+success_step, steps, wall time, steps/sec, policy time, video path).
+
+## Norm stats
+- All published shared stats are identical (md5 d071463b...): openpi_comet pt12, pt50, both pytorch
+  repos, and radio_best_pytorch.
+- The radio SFT checkpoint ships different, radio-specific stats (md5 f6863bb7...). These are what load.
+- `steering/norm_stats_check.py` recomputes stats from the 200 radio demos (Comet's script method:
+  per-episode stats aggregated like v3.7.2 lerobot_utils, plus Comet's state extraction) and exact per-frame.
+  Shift in normalized model-input units (quantile norm, range [-1,1]), averaged over radio demo frames:
+  | compared with recompute (script method) | state mean / max | action mean / max |
+  |---|---|---|
+  | checkpoint's bundled stats | 0.028 / 0.21 (trunk2) | 0.043 / 0.34* |
+  | pt12 shared stats          | 0.137 / 0.36 | 0.134 / 0.36 |
+  *torso3 has ~zero range, so that shift is meaningless; next largest is torso2 0.21.
+  => Checkpoint stats are radio-specific and close to recompute (small diffs likely from openpi's
+  per-frame histogram quantiles vs per-episode aggregation). pt12 stats would have been meaningfully wrong.
+
+## Things that broke / gotchas
+- `import omnigibson` blocks on an Isaac Sim EULA prompt unless `OMNI_KIT_ACCEPT_EULA=YES`.
+- Remote zip listing from the tail only shows part of a large zip's central directory; unzip to be sure.
