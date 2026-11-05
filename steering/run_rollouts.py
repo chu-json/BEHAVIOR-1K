@@ -166,7 +166,7 @@ def main():
             if tracer is not None:
                 tracer.reset()
                 step_count[0] = 0
-            logging.info(f"=== rollout {i + 1}/{n}: instance {instance}, seed {seed}")
+            print(f"=== rollout {i + 1}/{n}: instance {instance}, seed {seed}", flush=True)
             t0 = time.perf_counter()
             # rollout_id=seed so file names are <task>_<instance>_<seed>.{json,mp4}
             res = evaluator.run(
@@ -204,7 +204,7 @@ def main():
                 row.update(summary)
             writer.writerow(row)
             f.flush()
-            logging.info(f"=== rollout {i + 1}/{n} done: {row}")
+            print(f"=== rollout {i + 1}/{n} done: {row}", flush=True)
 
 
 if __name__ == "__main__":
