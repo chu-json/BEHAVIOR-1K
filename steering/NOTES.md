@@ -173,3 +173,26 @@ Successes took 1278-1413 steps (radio pressed with the radio still on the table)
   Progress: /home/behavior/ext/logs/overnight.log (+ wait_for_gpu.log, val10_full_fixed.log, gpu_watchdog.log).
   Cancel: `systemd-inhibit --list | grep steering` -> kill that PID's process group (`kill -- -<pid>`).
   GNOME AC auto-suspend was already off (`sleep-inactive-ac-type = nothing`); no settings changed.
+
+## N=10 with stale-grasp fix, full-res, timeout 4299 (2026-11-05, unattended): 4/10 success
+Run dir: /home/behavior/ext/runs/val10_full_fixed (traces/ has per-step CSVs). Stale grasps released before
+5/10 rollouts; every radio started on the table (z=0.534). No watchdog kills.
+| instance | seed | batch 1 (bug) | fixed | fixed: what happened (trace + video) |
+|---|---|---|---|---|
+| 242 | 0 | S 1315 | S 1256 | lifted radio (z 0.68), pressed in hand |
+| 295 | 1 | F (bug) | F | never grasped; right hand hovers beside the radio from ~860 to timeout, closest finger 11 cm |
+| 211 | 2 | F | F | grabs radio, carries it off the table edge, holds it below table height (z~0.4) ~2600 steps |
+| 203 | 3 | F (bug) | F | never grasped; radio barely moved, closest finger 15 cm (succeeded once at 224 in the A/B) |
+| 109 | 4 | F | S 1602 | |
+| 181 | 5 | S 1413 | F | near miss: right hand holds radio, left hand repeatedly near button (closest 6.9 cm) |
+| 197 | 6 | F (bug) | F | grasped then put back; closest finger 17 cm |
+| 187 | 7 | S 1278 | S 1490 | |
+| 214 | 8 | F (bug) | S 2010 | |
+| 139 | 9 | F | F | grasped briefly then released; closest finger 13 cm |
+- All successes (both batches + A/B) lift the radio and press the button in hand; successes took 1147-2010 steps.
+- Closest finger-link-to-button distance: 5.7-5.9 cm in successes vs 6.9-21 cm in failures (link origins, so the
+  5 cm "near button" threshold in rollout_trace.py never fires; ~6 cm would be a better cut).
+- Outcome flips between runs for 109, 181 (and 214, 203 across batches/resolutions): high per-instance variance.
+- With n=10, 4/10 has a 95% CI of roughly 12-74%; Comet reports 40-80% across reruns.
+- Timeout: max success step seen is 2010; `--max-steps 2500` would have kept every success and cut failed
+  rollouts from ~8.5 to ~5 min.
