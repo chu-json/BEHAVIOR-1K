@@ -43,6 +43,7 @@ CSV_FIELDS = [
     "policy_time_s",
     "resolution",
     "world_frame_base_qvel",
+    "base_mass_kg",
     "stale_grasp_at_start",
     "video_path",
     "json_path",
@@ -72,6 +73,12 @@ def parse_args():
             "we release all grasps before loading each instance."
         ),
     )
+    ap.add_argument(
+        "--base-mass",
+        choices=("eval", "default"),
+        default="eval",
+        help="eval = fork evaluator's 250 kg base override; default = robot asset's own base mass (2025 eval had no override).",
+    )
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--output-dir", required=True)
@@ -92,6 +99,8 @@ def main():
 
     from omegaconf import OmegaConf
 
+    import omnigibson as og
+    import omnigibson.eval.evaluator as evaluator_mod
     from omnigibson.eval.evaluator import BatchedEvaluator
     from omnigibson.eval.utils.eval_utils import seed_everything
     from omnigibson.macros import gm
@@ -128,6 +137,20 @@ def main():
             "robot": None,
         }
     )
+
+    if args.base_mass == "default":
+        # Undo the evaluator's base-mass override right after it is applied (mass writes need the sim stopped).
+        orig_apply = evaluator_mod.BatchedEvaluator._apply_robot_eval_settings
+
+        def apply_keep_default_mass(self):
+            r = self.instance_eval_states[0].env_accessor.robot
+            default_mass = r.base_footprint_link.mass
+            orig_apply(self)
+            og.sim.stop()
+            r.base_footprint_link.mass = default_mass
+            og.sim.play()
+
+        evaluator_mod.BatchedEvaluator._apply_robot_eval_settings = apply_keep_default_mass
 
     with BatchedEvaluator(cfg) as evaluator, open(csv_path, "a", newline="") as f:
         fields = CSV_FIELDS
@@ -212,6 +235,7 @@ def main():
                 "policy_time_s": round(policy_time[0], 1),
                 "resolution": args.resolution,
                 "world_frame_base_qvel": int(not args.robot_frame_base_qvel),
+                "base_mass_kg": round(float(robot.base_footprint_link.mass), 1),
                 "stale_grasp_at_start": ";".join(f"{a}:{o}" for a, o in stale.items())
                 + (" (kept)" if stale and args.keep_stale_grasps else " (released)" if stale else ""),
                 "video_path": os.path.join(video_dir, stem + ".mp4") if write_video else "",
