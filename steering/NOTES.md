@@ -162,3 +162,8 @@ Successes took 1278-1413 steps (radio pressed with the radio still on the table)
 - `steering/gpu_watchdog.sh <min_free_mib> <log>` kills run_rollouts.py if free GPU memory drops below the
   floor; logs per-process usage every 2 s.
 - Don't `pkill -f <pattern>` from the agent shell: the pattern matches the shell's own command line and kills it.
+- A/B release half (224): stale grasp `right: radio_89` found before 203 and released; radio stayed at
+  z=0.534; 203 then SUCCEEDED at step 1163 (it failed in the original batch). Fix confirmed.
+- val10_224_fixed: paused after rollout 1 (242 success, 1147 steps) to leave the GPU to MedGemma.
+- `steering/wait_for_gpu.sh "<allowed pids>" <quiet_min> <log> -- <cmd>` starts a command once no other GPU
+  process has existed for <quiet_min> minutes. Queued: val10_full_fixed (full-res, fix on, --trace).
