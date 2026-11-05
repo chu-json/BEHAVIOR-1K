@@ -154,3 +154,11 @@ Successes took 1278-1413 steps (radio pressed with the radio still on the table)
 ## Status / resume (2026-11-04)
 - Server and runs stopped (GPU freed). Restart the server (see Running) before any rollouts; it takes ~3 min.
 - Next: (1) rerun ab_grasp_release; (2) rerun the N=10 batch with the stale-grasp fix + `--trace`.
+
+## Sharing the GPU with another job (2026-11-04: MedGemma needs ~9 GB)
+- Server: `XLA_PYTHON_CLIENT_PREALLOCATE=false XLA_PYTHON_CLIENT_MEM_FRACTION=0.32` -> 8.0 GB, inference OK
+  (`steering/probe_server.py` sends fake obs; first call 30 s JIT, then ~0.3 s per inference).
+- Isaac Sim client peak: 224 = 5.6 GB; full-res = 9.3 GB. With MedGemma at 9.1 GB, only 224 fits.
+- `steering/gpu_watchdog.sh <min_free_mib> <log>` kills run_rollouts.py if free GPU memory drops below the
+  floor; logs per-process usage every 2 s.
+- Don't `pkill -f <pattern>` from the agent shell: the pattern matches the shell's own command line and kills it.
