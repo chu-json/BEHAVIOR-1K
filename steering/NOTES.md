@@ -98,3 +98,16 @@ success_step, steps, wall time, steps/sec, policy time, video path).
   not disk. fs.inotify.max_user_watches = 65536; VS Code held ~46.7k watches (it watches the 41k dirs under
   datasets/behavior-1k-assets) and claude-desktop ~18k. Fix: raise the limit
   (`sudo sysctl fs.inotify.max_user_watches=524288`) and/or exclude datasets/ from the VS Code file watcher.
+  RESOLVED 2026-11-04: user raised fs.inotify.max_user_watches to 524288; Isaac Sim launches fine.
+
+## Single-rollout results (instance 242, seed 0, timeout 4299, compat fixes on)
+| run | resolution | success | steps | wall s (rollout) | steps/s | waiting on policy s |
+|---|---|---|---|---|---|---|
+| 1 (server cold) | full 720/480 | yes | 1341 | 192.0 | 7.0 | 72.3 (incl. JAX compile) |
+| 2 | 224 | yes | 1043 | 90.7 | 11.5 | 7.8 |
+| 3 (server warm) | full 720/480 | yes | 1276 | 153.0 | 8.3 | 40.5 |
+- Wall time includes instance load + settle. One-time Isaac Sim launch + scene load is ~2 min per process.
+- Full-res costs ~3x more policy time than 224, mostly from sending ~4 MB of images over the websocket every
+  step (the server only runs inference every 32 steps). Sim-only rate is similar (11.3 vs 12.6 steps/s).
+- Same seed is NOT bit-reproducible (1341 vs 1276 steps, both full-res): the simulator is nondeterministic
+  even with seeded Python/NumPy/Torch and policy RNG.
