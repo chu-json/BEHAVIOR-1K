@@ -111,3 +111,38 @@ success_step, steps, wall time, steps/sec, policy time, video path).
   step (the server only runs inference every 32 steps). Sim-only rate is similar (11.3 vs 12.6 steps/s).
 - Same seed is NOT bit-reproducible (1341 vs 1276 steps, both full-res): the simulator is nondeterministic
   even with seeded Python/NumPy/Torch and policy RNG.
+
+## N=10 batch, 2025 val instances, full-res, timeout 4299 (2026-11-04): 3/10 success
+Run dir: /home/behavior/ext/runs/val10_full. Order = 242,295,211,203,109,181,197,187,214,139, seeds 0-9.
+| instance | seed | result | steps | what the video shows |
+|---|---|---|---|---|
+| 242 | 0 | success | 1315 | |
+| 295 | 1 | timeout | 4300 | radio already near floor level at start; robot reaches down, grabs it, freezes |
+| 211 | 2 | timeout | 4300 | radio on table; right gripper grabs it and LIFTS it, holds it in the air ~2600 steps |
+| 203 | 3 | timeout | 4300 | table empty at start, radio on the floor by the window; robot grabs it on the floor, stalls |
+| 109 | 4 | timeout | 4300 | radio on table; left arm pushes/rotates it (face toward robot), lets go, backs off, re-approaches |
+| 181 | 5 | success | 1413 | |
+| 197 | 6 | timeout | 4300 | radio on floor at start; robot goes to the (empty) table and circles it |
+| 187 | 7 | success | 1278 | |
+| 214 | 8 | timeout | 4300 | radio on floor at start (upright); right gripper grabs it, holds |
+| 139 | 9 | timeout | 4300 | radio on table; right arm rotates it (face toward robot), arms retract, hovers |
+Successes took 1278-1413 steps (radio pressed with the radio still on the table).
+
+### Bug found: stale assisted grasp carries over between rollouts (fork evaluator, not Comet)
+- `steering/check_instances.py` (zero actions, no policy): all 10 instances load with the radio exactly at its
+  TRO pose on the table (z=0.534, table top 0.423). So the instance files are fine.
+- Traced rerun of 197 -> 203: 197 (first in process) radio stays on table until the robot grabs it at ~1400 and
+  the episode ends with graspR=1. 203 (next): radio z=0.485 at step 1, 0.111 (floor) by step 100, robot base
+  unmoved, nearest finger 0.9 m away.
+- Mechanism: BatchedEvaluator._load_instance_state calls robot.reset(), which does NOT release assisted-grasp
+  constraints. The radio is then settled + snapshotted (update_initial_file) while still attached to the
+  gripper, and env.reset restores that snapshot including the grasp. The episode starts with the radio
+  tethered to the gripper; it drops when the gripper opens.
+- In the batch, every "radio on floor at start" instance (295, 203, 197, 214) followed a rollout that ended with
+  a hand on the radio. So 4/7 failures are likely this bug.
+- Workaround (steering/run_rollouts.py, default ON): release_grasp_immediately on every arm before loading each
+  instance; CSV column `stale_grasp_at_start`. `--keep-stale-grasps` reproduces the bug.
+- `OnTop(radio, table)` reads 0 for several instances where the radio is clearly resting on the table
+  (incl. successful 187); don't trust it as an init check.
+- `check_instances.py` CSV write never runs: evaluator __exit__ calls og.shutdown(), which ends the process.
+  Results are printed as INSTANCE_CHECK lines in the log.

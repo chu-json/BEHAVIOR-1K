@@ -43,6 +43,7 @@ CSV_FIELDS = [
     "policy_time_s",
     "resolution",
     "world_frame_base_qvel",
+    "stale_grasp_at_start",
     "video_path",
     "json_path",
 ]
@@ -61,6 +62,15 @@ def parse_args():
         "--robot-frame-base-qvel",
         action="store_true",
         help="Disable compat fix #3 (keep the fork's robot-frame base_qvel).",
+    )
+    ap.add_argument(
+        "--keep-stale-grasps",
+        action="store_true",
+        help=(
+            "Reproduce the fork evaluator bug: an assisted grasp left over from the previous rollout survives into "
+            "the next instance (robot.reset() does not release it) and drags the radio off the table. By default "
+            "we release all grasps before loading each instance."
+        ),
     )
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
@@ -162,6 +172,12 @@ def main():
             instance, seed = args.instances[i % len(args.instances)], seeds[i]
             seed_everything(seed)
             evaluator.env.rollout_seed = seed
+            robot = evaluator.instance_eval_states[0].env_accessor.robot
+            stale = {arm: obj.name for arm, obj in robot._ag_obj_in_hand.items() if obj is not None}
+            if stale and not args.keep_stale_grasps:
+                for arm in stale:
+                    robot.release_grasp_immediately(arm=arm)
+            print(f"=== stale assisted grasp before rollout {i + 1}: {stale or 'none'}", flush=True)
             policy_time[0] = 0.0
             if tracer is not None:
                 tracer.reset()
@@ -196,6 +212,8 @@ def main():
                 "policy_time_s": round(policy_time[0], 1),
                 "resolution": args.resolution,
                 "world_frame_base_qvel": int(not args.robot_frame_base_qvel),
+                "stale_grasp_at_start": ";".join(f"{a}:{o}" for a, o in stale.items())
+                + (" (kept)" if stale and args.keep_stale_grasps else " (released)" if stale else ""),
                 "video_path": os.path.join(video_dir, stem + ".mp4") if write_video else "",
                 "json_path": os.path.join(json_dir, stem + ".json"),
             }
