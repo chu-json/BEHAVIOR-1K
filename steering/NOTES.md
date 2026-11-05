@@ -167,3 +167,9 @@ Successes took 1278-1413 steps (radio pressed with the radio still on the table)
 - val10_224_fixed: paused after rollout 1 (242 success, 1147 steps) to leave the GPU to MedGemma.
 - `steering/wait_for_gpu.sh "<allowed pids>" <quiet_min> <log> -- <cmd>` starts a command once no other GPU
   process has existed for <quiet_min> minutes. Queued: val10_full_fixed (full-res, fix on, --trace).
+- 2026-11-04 22:27: queued unattended via `steering/overnight.sh` (detached with setsid/nohup, under
+  `systemd-inhibit --what=sleep:idle --mode=block`). It waits for 10 GPU-quiet minutes, starts the server,
+  runs val10_full_fixed, then stops the server/watchdog and releases the inhibitor.
+  Progress: /home/behavior/ext/logs/overnight.log (+ wait_for_gpu.log, val10_full_fixed.log, gpu_watchdog.log).
+  Cancel: `systemd-inhibit --list | grep steering` -> kill that PID's process group (`kill -- -<pid>`).
+  GNOME AC auto-suspend was already off (`sleep-inactive-ac-type = nothing`); no settings changed.
