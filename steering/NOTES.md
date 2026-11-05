@@ -196,3 +196,17 @@ Run dir: /home/behavior/ext/runs/val10_full_fixed (traces/ has per-step CSVs). S
 - With n=10, 4/10 has a 95% CI of roughly 12-74%; Comet reports 40-80% across reruns.
 - Timeout: max success step seen is 2010; `--max-steps 2500` would have kept every success and cut failed
   rollouts from ~8.5 to ~5 min.
+
+## State-vector check (2026-11-05): fork 61-d proprio gives Comet the same 23-d state as 2025's 256-d
+- Comet only uses 23 numbers: base_qvel(3) trunk_qpos(4) arm_left_qpos(7) arm_right_qpos(7) + 2 gripper widths.
+  The other 233 of the 2025 vector (sin/cos, qvel, efforts, eef poses, global pose...) are never read.
+- `steering/check_state_layout.py`: random pose set by joint name -> extracted from live 61-d proprio:
+  max error 9e-10 over all 18 trunk/arm dims, each lands on the expected named joint (torso_joint1-4,
+  left/right_arm_joint1-7, in order). Demo episode start state == fork reset pose exactly.
+- 2025 demo values per dim vs current joint limits at that position: 0.0% outside for all 18 dims; the
+  left/right-asymmetric joint2 ranges ([-0.17,3.14] vs [-3.14,0.17]) match the demos, so no L/R swap.
+- Not covered: robot asset dynamics (robot assets 3.7 -> 3.8.2), renderer/physics version.
+
+## Rollout report
+`python steering/make_report.py --run <run dir> --batch1 <pre-fix run dir> --out /home/behavior/ext/report`
+-> /home/behavior/ext/report/index.html (stats table; success + failure cases with video, keyframes, trace plot).
