@@ -146,3 +146,11 @@ Successes took 1278-1413 steps (radio pressed with the radio still on the table)
   (incl. successful 187); don't trust it as an init check.
 - `check_instances.py` CSV write never runs: evaluator __exit__ calls og.shutdown(), which ends the process.
   Results are printed as INSTANCE_CHECK lines in the log.
+- A/B (197 -> 203, seeds 6,3, 1500 steps, traced), /home/behavior/ext/runs/ab_grasp_{keep,release}:
+  - keep (`--keep-stale-grasps`): stale grasp `right: radio_89` found before 203; 203 radio z 0.485 at step 1,
+    0.111 (floor) by step 51. Bug reproduced.
+  - release (default): INTERRUPTED 2026-11-04 to free the GPU for another project; rerun to confirm the fix.
+
+## Status / resume (2026-11-04)
+- Server and runs stopped (GPU freed). Restart the server (see Running) before any rollouts; it takes ~3 min.
+- Next: (1) rerun ab_grasp_release; (2) rerun the N=10 batch with the stale-grasp fix + `--trace`.
