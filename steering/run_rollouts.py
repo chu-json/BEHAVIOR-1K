@@ -67,6 +67,9 @@ def parse_args():
     ap.add_argument("--output-dir", required=True)
     ap.add_argument("--no-video", action="store_true")
     ap.add_argument("--video-fps", type=int, default=30)
+    ap.add_argument(
+        "--trace", action="store_true", help="Write a per-step diagnostic trace (steering/rollout_trace.py)."
+    )
     return ap.parse_args()
 
 
@@ -117,7 +120,12 @@ def main():
     )
 
     with BatchedEvaluator(cfg) as evaluator, open(csv_path, "a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        fields = CSV_FIELDS
+        if args.trace:
+            from steering.rollout_trace import SUMMARY_FIELDS
+
+            fields = CSV_FIELDS + ["trace_path"] + SUMMARY_FIELDS
+        writer = csv.DictWriter(f, fieldnames=fields)
         if new_csv:
             writer.writeheader()
         evaluator.env.world_frame_base_qvel = not args.robot_frame_base_qvel
@@ -134,11 +142,30 @@ def main():
 
         evaluator.policy.forward = timed_forward
 
+        tracer = None
+        if args.trace:
+            from steering.rollout_trace import RolloutTracer
+
+            tracer = RolloutTracer(evaluator, os.path.join(out_dir, "traces"))
+            apply_actions = evaluator._apply_actions
+            step_count = [0]
+
+            def traced_apply_actions(*a, **kw):
+                out = apply_actions(*a, **kw)
+                step_count[0] += 1
+                tracer.record(step_count[0])
+                return out
+
+            evaluator._apply_actions = traced_apply_actions
+
         for i in range(n):
             instance, seed = args.instances[i % len(args.instances)], seeds[i]
             seed_everything(seed)
             evaluator.env.rollout_seed = seed
             policy_time[0] = 0.0
+            if tracer is not None:
+                tracer.reset()
+                step_count[0] = 0
             logging.info(f"=== rollout {i + 1}/{n}: instance {instance}, seed {seed}")
             t0 = time.perf_counter()
             # rollout_id=seed so file names are <task>_<instance>_<seed>.{json,mp4}
@@ -172,6 +199,9 @@ def main():
                 "video_path": os.path.join(video_dir, stem + ".mp4") if write_video else "",
                 "json_path": os.path.join(json_dir, stem + ".json"),
             }
+            if tracer is not None:
+                row["trace_path"], summary = tracer.finish(stem)
+                row.update(summary)
             writer.writerow(row)
             f.flush()
             logging.info(f"=== rollout {i + 1}/{n} done: {row}")
