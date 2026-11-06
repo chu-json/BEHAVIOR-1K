@@ -44,6 +44,7 @@ CSV_FIELDS = [
     "resolution",
     "world_frame_base_qvel",
     "base_mass_kg",
+    "full_scene",
     "stale_grasp_at_start",
     "video_path",
     "json_path",
@@ -78,6 +79,11 @@ def parse_args():
         choices=("eval", "default"),
         default="eval",
         help="eval = fork evaluator's 250 kg base override; default = robot asset's own base mass (2025 eval had no override).",
+    )
+    ap.add_argument(
+        "--full-scene",
+        action="store_true",
+        help="Load the whole house (2025 eval default) instead of only the task's rooms (fork default).",
     )
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
@@ -127,7 +133,7 @@ def main():
                 "action_chunk_size": 0,
             },
             "headless": True,
-            "partial_scene_load": True,
+            "partial_scene_load": not args.full_scene,
             "max_steps": args.max_steps,
             "write_video": write_video,
             "mode": "train",
@@ -236,6 +242,7 @@ def main():
                 "resolution": args.resolution,
                 "world_frame_base_qvel": int(not args.robot_frame_base_qvel),
                 "base_mass_kg": round(float(robot.base_footprint_link.mass), 1),
+                "full_scene": int(args.full_scene),
                 "stale_grasp_at_start": ";".join(f"{a}:{o}" for a, o in stale.items())
                 + (" (kept)" if stale and args.keep_stale_grasps else " (released)" if stale else ""),
                 "video_path": os.path.join(video_dir, stem + ".mp4") if write_video else "",

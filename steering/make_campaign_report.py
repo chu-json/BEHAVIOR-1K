@@ -93,9 +93,6 @@ def trace_plot(tr, out_png, title):
     if has_toggle:
         a3 = axes[2]
         a3.fill_between(
-            s, 0, 1, where=tr["contact"] > 0, color="#8e44ad", alpha=0.35, step="mid", label="finger touching radio"
-        )
-        a3.fill_between(
             s,
             1.1,
             2.1,
@@ -164,7 +161,7 @@ def main():
             if r["success"] != "1"
             and r["_trace"] is not None
             and r["_trace"]["overlap25"] is not None
-            and max_run((r["_trace"]["contact"] > 0) & (r["_trace"]["overlap25"] > 0)) >= CAN_TOGGLE_STEPS_2025
+            and max_run(r["_trace"]["overlap25"] > 0) >= CAN_TOGGLE_STEPS_2025
         ]
         has_shadow = any(r["_trace"] is not None and r["_trace"]["overlap25"] is not None for r in rows)
         p.append(
@@ -176,8 +173,8 @@ def main():
     p.append(
         "</table><p>Failure modes are classified from the trace: <i>never grasped</i> = fewer than 15 "
         "grasping steps; <i>held radio until timeout</i> = still grasping at the last step; otherwise "
-        "<i>grasped, then let go</i>. The 2025 press rule fires when a finger touches the radio and the "
-        "2025 sphere test overlaps the button for 5 consecutive steps.</p>"
+        "<i>grasped, then let go</i>. The 2025 press-rule column counts failures where the 2025 sphere test "
+        "overlapped the button for 5+ consecutive steps (an upper bound: 2025 also required finger contact).</p>"
     )
 
     # Instance x condition grid.
@@ -218,8 +215,8 @@ def main():
     # Examples: per condition, one success + first example of each failure mode.
     p.append(
         "<h2>Example rollouts</h2><p>Videos: left = wrist cameras, right = head camera. Plots: closest "
-        "finger to button; radio height with grasp periods shaded; and (new runs) finger contact, the 2025 "
-        "press-rule overlap, and the fork's press timer (flips at 0.15 s).</p>"
+        "finger to button; radio height with grasp periods shaded; and (new runs) the 2025 press-rule "
+        "overlap and the fork's press timer (flips at 0.15 s).</p>"
     )
     for ci, (label, _, rows) in enumerate(conds):
         p.append(f"<h3>{html.escape(label)}</h3>")
