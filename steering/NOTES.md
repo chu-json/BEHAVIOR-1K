@@ -304,3 +304,21 @@ Outputs: /home/behavior/ext/runs/prompt_sweep/{results.csv,index.html} rebuilt a
 (`steering/sweep_report.py`). Logs: /home/behavior/ext/logs/prompt_sweep.log, sweep_*.log.
 - pt50 download: unauthenticated HF limit is 1000 API requests / 5 min; snapshot_download silently stopped at
   3852/5948 files. Use a paced per-file download (see /home/behavior/ext/paced_dl.py) and verify the file count.
+### Results (100 rollouts: main seed-0 pass + full bonus seed-1 pass), 2026-11-06 07:40
+Report: /home/behavior/ext/runs/prompt_sweep/index.html; per-rollout CSV: .../prompt_sweep/results.csv.
+Pooled over both seeds (10 rollouts per cell):
+| ckpt | P0 | P1 para | P2 left | P3 right | P4 no-lift |
+|---|---|---|---|---|---|
+| A radio SFT success | 9/10 | 8/10 | 9/10 | 9/10 | 10/10 |
+| B pt50 success | 4/10 | 5/10 | 4/10 | 2/10 | 3/10 |
+- Hand: the pressing hand is fixed by the setup, not the prompt. Across all 63 successes (both checkpoints, all
+  prompts, both seeds): 242 left 15/15, 203 right 14/14, 109 right 11/11, 187 left 10/10, 181 left 12/13 (one
+  right). P2 "left hand" / P3 "right hand" never moved a setup to the requested hand.
+- Lifting: every rollout that grasped the radio lifted it (>3 cm) in every condition, incl. P4 "without picking
+  the radio up" (A 10/10, B 8/8 grasped). Raw "lifted %" dips (e.g. B 80%) come only from rollouts that never
+  grasped.
+- Paraphrase P1: no meaningful change for either checkpoint.
+- pt50 is much weaker than the radio SFT on this task (19/50 vs 45/50 pooled over prompts); its lowest cells
+  (P3 2/10, P4 3/10) are within noise of P0 (4/10) at n=10.
+=> Comet's behavior on this task is not steerable through the language prompt (hand choice, lifting); the
+   prompt mostly acts as a task identifier.
