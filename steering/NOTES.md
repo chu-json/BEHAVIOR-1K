@@ -322,3 +322,28 @@ Pooled over both seeds (10 rollouts per cell):
   (P3 2/10, P4 3/10) are within noise of P0 (4/10) at n=10.
 => Comet's behavior on this task is not steerable through the language prompt (hand choice, lifting); the
    prompt mostly acts as a task identifier.
+
+## Base pi0.5 (no BEHAVIOR fine-tuning) + steerability day campaign (started 2026-11-06 14:39)
+Setup: `gs://openpi-assets/checkpoints/pi05_base` (12 GB, cached at ~/.cache/openpi) -> /home/behavior/ext/ckpt/
+pi05_base_b1k = params symlink + Comet's shared B1K norm stats (d071463b; the base ckpt only ships stats for
+its own embodiments: droid, franka, arx(_mobile), trossen(_mobile), ur5e(_dual), fibocom_mobile). Served with
+config `pi05_b1k-base` (same B1K input/output transforms + 23-d action layout as Comet). Registry:
+steering/probe_prompts.py (models A_radio_sft, B_pt50, C_pi05_base + prompt set).
+- First look (600 steps, setup 242): drives ~0.9 m, turns ~3.4 rad, bends the torso until the head camera sees
+  the floor/its own base, arms flail (EEF paths ~10-16 m), grippers half close. Not frozen: there is behavior.
+New tools:
+- `comet_server.py --dump-obs DIR`: saves the preprocessed obs (3x224x224 images + 61-d proprio) at every
+  inference step.
+- `prompt_probe.py` / `probe_report.py`: counterfactual prompt probe. Same obs + same diffusion noise, different
+  prompt; effect ratio = prompt-induced action change / noise-induced change, per joint group; directional
+  sign tests (arm bias, turn rate, forward velocity, total motion) paired over observations.
+- Trace now logs EEF positions (base frame) and gripper openings; `motor_report.py` scores closed-loop motor
+  prompts (hand raise, yaw change, forward displacement, total motion) vs P0 per setup.
+Campaign (`steering/day_campaign.py`, detached, sleep inhibitor, resumable):
+ 1. base P0, setups 242/203/109/181/187 x seeds 0,1, 3000 steps, obs dumped   (basic rollouts)
+ 2. Comet A P0, same setups, seed 2, obs dumped                                (states for the probe)
+ 3. probe: {base, A, pt50} x {comet states, base states} x 150 obs x 13 prompts x 2 noise seeds
+ 4. base P1-P4 (exact overnight-sweep prompts), same setups/seeds
+ 5. motor prompts (P0, raise left/right arm, turn left/right, move forward, stay still, nonsense) on base and
+    Comet A, setups 242/203/187, seed 0, 1000 steps
+Outputs: /home/behavior/ext/runs/day/{base_sweep,obs_record,probe,motor}; log /home/behavior/ext/logs/day_campaign.log.
