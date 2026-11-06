@@ -55,6 +55,7 @@ def load_trace(path):
         "contact": num("finger_contact_radio") if "finger_contact_radio" in t[0] else None,
         "overlap25": num("overlap_2025") if "overlap_2025" in t[0] else None,
         "timer": num("fork_toggle_timer_s") if "fork_toggle_timer_s" in t[0] else None,
+        "assist": num("assist_active") if "assist_active" in t[0] and t[0]["assist_active"] != "" else None,
     }
 
 
@@ -142,6 +143,27 @@ def trace_plot(tr, out_png, title):
         a3.plot(s, 2.2 + 4 * np.nan_to_num(tr["timer"]), color="#d35400", lw=1, label="fork press timer (x4 s)")
         a3.set_yticks([])
         a3.legend(loc="upper left", fontsize=7, ncol=3)
+    if tr.get("assist") is not None and np.nansum(tr["assist"]) > 0:
+        for ax in axes:
+            ax.fill_between(
+                s,
+                0,
+                1,
+                where=tr["assist"] > 0,
+                color="#e74c3c",
+                alpha=0.25,
+                transform=ax.get_xaxis_transform(),
+                label=None,
+            )
+        axes[0].text(
+            s[np.argmax(tr["assist"] > 0)],
+            0.92,
+            " assist: rotate to face radio",
+            color="#c0392b",
+            fontsize=8,
+            transform=axes[0].get_xaxis_transform(),
+            va="top",
+        )
     axes[-1].set_xlabel("step")
     fig.savefig(out_png, dpi=105)
     plt.close(fig)
