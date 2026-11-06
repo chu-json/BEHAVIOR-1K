@@ -243,3 +243,19 @@ Comet issue #17 reports 10/10 with this checkpoint on these 10 instances on BEHA
 - Successes now range 907-2711 steps; massE uses the full 4299 timeout to check for late successes.
 - massD (47.6 kg + whole house, s0-9): **8/10** (fails only 211, 197) vs massA (same seeds, task rooms only) 6/10.
   Not significant alone; queued massF (whole house, s10-19) to pair with massC (4/10). campaign3.sh.
+- massE (47.6 kg, rooms, s20-29, timeout 4299): 3/10; no failure recovered after step 3000.
+- massF (47.6 kg, whole house, s10-19): 6/10 (211 succeeded for the first time; 7 tries before: 0).
+
+### Final tally (70 rollouts with the fix), report: /home/behavior/ext/report_campaign/index.html
+| condition | result |
+|---|---|
+| 250 kg, task rooms (s0-9, s10-19) | 11/20 |
+| 47.6 kg, task rooms (s0-9, s10-19, s20-29) | 13/30 |
+| 47.6 kg, whole house (s0-9, s10-19) | 14/20 |
+| all | 38/70 = 54% |
+- Base mass: no effect (Fisher p=0.57). Timeout: no effect beyond 3000.
+- Whole house vs task rooms: 70% vs 48%, Fisher p=0.12; paired (same instance+seed, 47.6 kg): both succeed 9,
+  house-only 5, rooms-only 1, neither 5 (McNemar p=0.22). Suggestive, not significant. Next: more whole-house
+  batches; if it holds, use `--full-scene` as the default for baselines.
+- Failure modes (auto-classified, all conditions): held radio until timeout 14, grasped then let go 13,
+  never grasped 5. The 2025 press rule never fired on a failed rollout.
