@@ -26,6 +26,7 @@ def main():
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
+    import torch as th
     from omegaconf import OmegaConf
 
     from omnigibson.eval.evaluator import BatchedEvaluator
@@ -58,7 +59,15 @@ def main():
             entity = acc.object_scope[RADIO]
             radio = getattr(entity, "wrapped_obj", entity)
             rp, rq = radio.get_position_orientation()
-            bp = radio.states[ToggledOn].marker.get_position_orientation()[0]
+            state = radio.states[ToggledOn]
+            marker = state.marker
+            bp = marker.get_position_orientation()[0]
+            import omnigibson.utils.transform_utils as T
+
+            # marker center in the radio's own frame, and the radio's own (native) bounding box
+            local = T.relative_pose_transform(bp, th.tensor([0.0, 0, 0, 1]), rp, rq)[0]
+            native = radio.native_bbox
+            radius = float(th.min(marker.extent * marker.scale))
             x, y, z, w = (float(v) for v in rq)
             out[inst] = {
                 "radio_pos": [float(v) for v in rp],
@@ -66,6 +75,11 @@ def main():
                 "button_pos": [float(v) for v in bp],
                 "button_offset_world": [float(b - r) for b, r in zip(bp, rp)],
                 "radio_aabb_extent": [float(v) for v in radio.aabb_extent],
+                "marker_local_pos": [float(v) for v in local],
+                "radio_native_bbox": [float(v) for v in native],
+                "marker_radius": radius,
+                "marker_inside_bbox": bool(all(abs(float(c)) < float(e) / 2 for c, e in zip(local, native))),
+                "marker_depth_below_surface_per_axis": [float(e) / 2 - abs(float(c)) for c, e in zip(local, native)],
             }
             print("BUTTON", inst, json.dumps(out[inst]), flush=True)
             # og.shutdown() in the evaluator's __exit__ ends the process, so write after every instance.

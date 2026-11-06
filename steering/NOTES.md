@@ -259,3 +259,33 @@ Comet issue #17 reports 10/10 with this checkpoint on these 10 instances on BEHA
   batches; if it holds, use `--full-scene` as the default for baselines.
 - Failure modes (auto-classified, all conditions): held radio until timeout 14, grasped then let go 13,
   never grasped 5. The 2025 press rule never fired on a failed rollout.
+
+## Causal test: rotate the base to face the radio (steering/align_assist.py), 2026-11-05
+Trigger: base moved, then stopped (<3 cm / 3 deg over 30 steps) within 1.5 m of the radio, >15 deg off-heading,
+not grasping. Action: pause policy, rotate in place to face the radio's true position (<3 deg), hold 10 steps,
+reset the policy's action queue, resume. Once per episode. 47.6 kg, task rooms, full-res, fix on, timeout 3000,
+same (instance, seed) pairs as massA/C/E. Runs: /home/behavior/ext/runs/assist_{right,left_control};
+report: /home/behavior/ext/report_assist/index.html.
+| group | baseline (same pairs) | assisted | fired |
+|---|---|---|---|
+| radio on robot's right (211, 197, 214, 139 x 3 seeds) | 1/12 | **5/12** | 11/12 |
+| radio on robot's left control (242, 295, 203, 109, 181, 187) | 6/6 | 4/6 | 3/6 (3/3 succeeded when fired) |
+- Right side: 4 pairs flipped F->S, 0 S->F (exact sign test p=0.125). Per instance: 214 3/3 (baseline 0/3),
+  139 2/3 (1/3), 211 0/3 (0/3), 197 0/3 (0/3).
+- After the assist the base mostly stays aligned (211 at -5..-11 deg, 197 s16 at -3 deg; 197 s6 turned itself back
+  to -27 deg), yet in 211/197 the closest finger never gets within 13-21 cm of the button (successes 5.0-5.7 cm).
+- Left control: both failures were rollouts where the assist never fired (ordinary variance), so no sign of harm.
+=> Alignment is a real bottleneck for some right-side instances (214), but not sufficient for the hardest two
+   (211, 197): their failure is downstream, getting a finger onto the button.
+
+### Button geometry follow-up (inconclusive; corrections)
+- Toggle marker (radio model wxnicr, 3.9 assets): on the radio's front (+x) face, 4.2 cm off-center sideways,
+  1.2 cm below mid-height; marker center 0.17 cm behind the face, detection sphere (r=2.24 cm) protrudes 2.1 cm
+  (`steering/button_reachability.py`, PhysX raycasts). It IS reachable from the front face.
+  CORRECTION: an earlier note that the marker was inside the radio body ignored the model's base_link_offset.
+- Front-face direction vs robot approach: 197 160 deg (0/7), 211 104 deg (1/7), but 187 138 deg succeeds 5/7 and
+  295 5 deg only 2/7. Not a clean explanation.
+- 2025 demos: the radio is always on the table (z=0.534) when it turns on; operators rotate it ~31 deg (median).
+  In our sim every Comet success has the radio lifted (z 0.68-0.81). Open question why (physics differences in
+  pushing/friction/assisted grasp?). No evidence that the button moved between asset versions (not checked
+  against the 3.7 asset).
