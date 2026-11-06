@@ -41,6 +41,7 @@ FIELDS = [
     "pressing_hand",
     "max_lift_cm",
     "lifted",
+    "grasped",
     "heading_err_grasp_deg",
     "min_heading_err_deg",
     "wall_time_s",
@@ -65,6 +66,7 @@ def derive(r):
         for x in t
     ]
     k = next((j for j, x in enumerate(t) if x["grasp_radio_left"] == "1" or x["grasp_radio_right"] == "1"), None)
+    grasped = int(k is not None)
     if k is None:
         k = min(range(len(t)), key=lambda j: math.hypot(rx - float(t[j]["base_x"]), ry - float(t[j]["base_y"])))
     ok = r["success"] == "1"
@@ -82,6 +84,7 @@ def derive(r):
         "pressing_hand": pressing,
         "max_lift_cm": round(100 * lift, 1),
         "lifted": int(lift > LIFT_M),
+        "grasped": grasped,
         "heading_err_grasp_deg": round(herr[k], 1),
         "min_heading_err_deg": round(min(herr), 1),
         "wall_time_s": r["wall_time_s"],
@@ -166,7 +169,6 @@ def main():
                 verdict = ""
                 if pid != "P0" and base:
                     bl = sum(r["closest_hand"] == "left" for r in base) / len(base)
-                    blf = sum(r["lifted"] for r in base) / len(base)
                     if pid == "P2":
                         d = cl / n - bl
                         verdict = f"left-closest {100 * bl:.0f}% -> {100 * cl / n:.0f}%"
@@ -174,8 +176,17 @@ def main():
                         d = (1 - cl / n) - (1 - bl)
                         verdict = f"right-closest {100 * (1 - bl):.0f}% -> {100 * (1 - cl / n):.0f}%"
                     elif pid == "P4":
-                        d = blf - lf / n
-                        verdict = f"lifted {100 * blf:.0f}% -> {100 * lf / n:.0f}%"
+                        # Only rollouts that grasped the radio can show compliance; a robot that never touches
+                        # the radio "doesn't lift it" trivially.
+                        bg = [r for r in base if r["grasped"]]
+                        g = [r for r in rs if r["grasped"]]
+                        blg = sum(r["lifted"] for r in bg) / len(bg) if bg else float("nan")
+                        lg = sum(r["lifted"] for r in g) / len(g) if g else float("nan")
+                        d = blg - lg
+                        verdict = (
+                            f"lifted among rollouts that grasped: {100 * blg:.0f}% ({len(bg)}) -> "
+                            f"{100 * lg:.0f}% ({len(g)})"
+                        )
                     else:
                         d = None
                         verdict = f"success {sum(r['success'] for r in base)}/{len(base)} -> {k}/{n} (paraphrase)"
@@ -190,6 +201,33 @@ def main():
                     f"<td>{med([r['heading_err_grasp_deg'] for r in rs]):.0f}&deg;</td><td class=l>{verdict}</td></tr>"
                 )
         p.append("</table>")
+        # Pressing hand per setup x prompt (L/R for successes, F for failures).
+        for ck in ckpts:
+            p.append(
+                f"<p><b>{html.escape(ck)}</b>: pressing hand per setup (L/R = success pressed with left/right, "
+                "F = failed; lowercase = hand closest to the button in a failure)</p><table><tr><th>setup</th>"
+                + "".join(f"<th>{pid}</th>" for pid in PROMPT_ORDER)
+                + "</tr>"
+            )
+            for inst in dict.fromkeys(r["instance_id"] for r in rows):
+                cells = []
+                for pid in PROMPT_ORDER:
+                    rr = [
+                        r
+                        for r in rows
+                        if r["pass"] == pas
+                        and r["checkpoint"] == ck
+                        and r["prompt_id"] == pid
+                        and r["instance_id"] == inst
+                    ]
+                    if not rr:
+                        cells.append("<td>-</td>")
+                        continue
+                    r = rr[0]
+                    txt = r["pressing_hand"][0].upper() if r["success"] else "F" + r["closest_hand"][0]
+                    cells.append(f"<td>{txt}</td>")
+                p.append(f"<tr><td>{inst}</td>{''.join(cells)}</tr>")
+            p.append("</table>")
 
     shown = [c for c in FIELDS if c != "trace_path"]
     p.append("<h2>Every rollout</h2><table><tr>" + "".join(f"<th>{c}</th>" for c in shown) + "</tr>")
