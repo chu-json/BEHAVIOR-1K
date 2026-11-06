@@ -241,3 +241,5 @@ Comet issue #17 reports 10/10 with this checkpoint on these 10 instances on BEHA
   104 right), so it's not missing coverage. The robot does turn the correct way; the always-fail instances
   never align squarely with the radio (best heading error 197: 13-31 deg, 211: 28-34 deg; successes ~0-11).
 - Successes now range 907-2711 steps; massE uses the full 4299 timeout to check for late successes.
+- massD (47.6 kg + whole house, s0-9): **8/10** (fails only 211, 197) vs massA (same seeds, task rooms only) 6/10.
+  Not significant alone; queued massF (whole house, s10-19) to pair with massC (4/10). campaign3.sh.
