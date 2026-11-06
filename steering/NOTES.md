@@ -289,3 +289,18 @@ report: /home/behavior/ext/report_assist/index.html.
   In our sim every Comet success has the radio lifted (z 0.68-0.81). Open question why (physics differences in
   pushing/friction/assisted grasp?). No evidence that the button moved between asset versions (not checked
   against the 3.7 asset).
+
+## Prompt steerability sweep (overnight 2026-11-05/06) — steering/prompt_sweep.py
+Config: whole house, 47.6 kg base, full-res, stale-grasp fix, timeout 3000. Setups 242 203 109 181 187, seed 0.
+Checkpoints: A = radio SFT (its own norm stats), B = pt50 (`sunshk/openpi_comet/pi05-b1kpt50-cs32`, shared norm
+stats d071463b, config pi05_b1k-pt50_cs32_bs64_lr2.5e-5_step50k). Prompt via `comet_server.py --prompt`.
+Prompts (suffix inserted before the final period): P0 original; P1 "Switch on the radio receiver sitting on the
+living room table."; P2/P3 "... in the living room using your left/right hand."; P4 "... without picking the
+radio up." Order: P0, P2, P3, P4, P1, each A then B; fresh server + sim per group.
+Time estimate (from whole-house runs on these setups): success ~2.8 min, failure ~6 min, startup ~3.5 min/group
+=> 50 rollouts worst case ~5.6 h, likely ~4-4.5 h. Bonus pass with seed 1 (same order) only starts a group if it
+can finish within the 8 h deadline; reported separately.
+Outputs: /home/behavior/ext/runs/prompt_sweep/{results.csv,index.html} rebuilt after every group
+(`steering/sweep_report.py`). Logs: /home/behavior/ext/logs/prompt_sweep.log, sweep_*.log.
+- pt50 download: unauthenticated HF limit is 1000 API requests / 5 min; snapshot_download silently stopped at
+  3852/5948 files. Use a paced per-file download (see /home/behavior/ext/paced_dl.py) and verify the file count.
