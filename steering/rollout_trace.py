@@ -30,6 +30,14 @@ TRACE_FIELDS = [
     "fork_toggle_timer_s",  # fork ToggledOn: seconds of finger-overlapping-marker so far (flips at 0.15 s)
     "overlap_2025",  # 2025 rule's sphere test (PhysX overlap_sphere at the marker vs finger links)
     "assist_active",  # 1 while steering/align_assist.py has paused the policy (rotating / settling)
+    "eef_left_x",  # end-effector positions in the robot base frame (x forward, y left, z up), meters
+    "eef_left_y",
+    "eef_left_z",
+    "eef_right_x",
+    "eef_right_y",
+    "eef_right_z",
+    "grip_left",  # gripper opening (sum of the two finger joints), meters
+    "grip_right",
 ]
 SUMMARY_FIELDS = [
     "min_finger_button_dist",
@@ -100,6 +108,12 @@ class RolloutTracer:
         )
         row["overlap_2025"] = int(bool(ToggledOn._check_overlap(0, self._obj_idx)))
         row["assist_active"] = self.assist.active if self.assist is not None else ""
+        q = robot.get_joint_positions()
+        for arm, side in zip(robot.arm_names, ("left", "right")):
+            p_rel = robot.get_relative_eef_position(arm=arm)
+            for axis, v in zip("xyz", p_rel.tolist()):
+                row[f"eef_{side}_{axis}"] = round(v, 4)
+            row[f"grip_{side}"] = round(float(q[robot.gripper_control_idx[arm]].sum()), 4)
         self.rows.append(row)
 
     def finish(self, stem):

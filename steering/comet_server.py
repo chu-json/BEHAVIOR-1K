@@ -83,14 +83,23 @@ def install_omnigibson_shim():
 class BatchedCometPolicy:
     """Adapts Comet's B1KPolicyWrapper (unbatched) to the fork's batched obs, num_envs == 1 only."""
 
-    def __init__(self, comet_policy, openpi_policy):
+    def __init__(self, comet_policy, openpi_policy, dump_dir=None):
         self.comet = comet_policy
         self.openpi_policy = openpi_policy
         self._need_seed = True
+        # Optional: save the exact (preprocessed) observation at every inference step, for offline prompt probing
+        # (steering/prompt_probe.py). Comet's receding-horizon wrapper infers when its action queue is empty.
+        self.dump_dir = dump_dir
+        self._episode = -1
+        self._step = 0
+        if dump_dir:
+            os.makedirs(dump_dir, exist_ok=True)
 
     def reset(self):
         self.comet.reset()
         self._need_seed = True
+        self._episode += 1
+        self._step = 0
 
     def act(self, obs):
         unbatched = {}
@@ -106,6 +115,17 @@ class BatchedCometPolicy:
             self.openpi_policy._rng = jax.random.key(int(np.asarray(seed).reshape(-1)[0]))
             logging.info(f"Episode start: policy RNG seeded with {int(np.asarray(seed).reshape(-1)[0])}")
         self._need_seed = False
+        if self.dump_dir and len(self.comet.action_queue) == 0:
+            po = self.comet.process_obs(unbatched)
+            os.makedirs(self.dump_dir, exist_ok=True)
+            np.savez_compressed(
+                os.path.join(self.dump_dir, f"ep{self._episode:03d}_step{self._step:05d}.npz"),
+                images=np.asarray(po["observation"][0], dtype=np.uint8),  # (3 cams, 224, 224, 3): head, left, right
+                proprio=np.asarray(po["proprio"][0], dtype=np.float32),  # (61,)
+                seed=-1 if seed is None else int(np.asarray(seed).reshape(-1)[0]),
+                prompt=self.comet.task_prompt,
+            )
+        self._step += 1
         action = self.comet.act(unbatched)  # torch (1, 23)
         assert tuple(action.shape) == (1, 23), f"unexpected action shape {tuple(action.shape)}"
         return action
@@ -123,6 +143,7 @@ def main():
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--control-mode", default="receeding_horizon")
     ap.add_argument("--max-len", type=int, default=32)
+    ap.add_argument("--dump-obs", default=None, help="Directory to save the observation at every inference step.")
     ap.add_argument(
         "--prompt",
         default=None,
@@ -147,7 +168,7 @@ def main():
         comet_policy.task_prompt = args.prompt
     logging.info(f"PROMPT in use: {comet_policy.task_prompt!r}")
     server = net.WebsocketPolicyServer(
-        policy=BatchedCometPolicy(comet_policy, openpi_policy),
+        policy=BatchedCometPolicy(comet_policy, openpi_policy, dump_dir=args.dump_obs),
         host="0.0.0.0",
         port=args.port,
         metadata=openpi_policy.metadata,
