@@ -121,7 +121,7 @@ def main():
 
     conds = []
     for spec in args.run:
-        label, d = spec.split("=", 1)
+        label, d = spec.rsplit("=", 1)
         rows = list(csv.DictReader(open(os.path.join(d, "rollouts.csv"))))
         for r in rows:
             r["_trace"] = load_trace(r["trace_path"]) if r.get("trace_path") else None
