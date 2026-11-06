@@ -29,6 +29,7 @@ TRACE_FIELDS = [
     "finger_contact_radio",  # fork ToggledOn: a finger link is in contact with the radio
     "fork_toggle_timer_s",  # fork ToggledOn: seconds of finger-overlapping-marker so far (flips at 0.15 s)
     "overlap_2025",  # 2025 rule's sphere test (PhysX overlap_sphere at the marker vs finger links)
+    "assist_active",  # 1 while steering/align_assist.py has paused the policy (rotating / settling)
 ]
 SUMMARY_FIELDS = [
     "min_finger_button_dist",
@@ -55,6 +56,7 @@ class RolloutTracer:
         os.makedirs(out_dir, exist_ok=True)
         self.rows = []
         self._radio = None
+        self.assist = None  # optional AlignAssist, set by run_rollouts.py
 
     def reset(self):
         self.rows = []
@@ -97,6 +99,7 @@ class RolloutTracer:
             round(wp.to_torch(timer).reshape(-1)[self._obj_idx].item(), 4) if timer is not None and n_obj else ""
         )
         row["overlap_2025"] = int(bool(ToggledOn._check_overlap(0, self._obj_idx)))
+        row["assist_active"] = self.assist.active if self.assist is not None else ""
         self.rows.append(row)
 
     def finish(self, stem):

@@ -85,6 +85,13 @@ def parse_args():
         action="store_true",
         help="Load the whole house (2025 eval default) instead of only the task's rooms (fork default).",
     )
+    ap.add_argument(
+        "--align-assist",
+        action="store_true",
+        help="Causal test (steering/align_assist.py): when the base stops near the radio >threshold off-heading, "
+        "pause the policy, rotate in place to face the radio, then resume.",
+    )
+    ap.add_argument("--assist-threshold-deg", type=float, default=15.0)
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--output-dir", required=True)
@@ -164,6 +171,8 @@ def main():
             from steering.rollout_trace import SUMMARY_FIELDS
 
             fields = CSV_FIELDS + ["trace_path"] + SUMMARY_FIELDS
+        if args.align_assist:
+            fields = fields + ["assist_interventions", "assist_log"]
         writer = csv.DictWriter(f, fieldnames=fields)
         if new_csv:
             writer.writeheader()
@@ -181,11 +190,19 @@ def main():
 
         evaluator.policy.forward = timed_forward
 
+        assist = None
+        if args.align_assist:
+            from steering.align_assist import AlignAssist
+
+            assist = AlignAssist(evaluator, threshold_deg=args.assist_threshold_deg)
+            evaluator.policy.forward = assist.wrap(evaluator.policy.forward)
+
         tracer = None
         if args.trace:
             from steering.rollout_trace import RolloutTracer
 
             tracer = RolloutTracer(evaluator, os.path.join(out_dir, "traces"))
+            tracer.assist = assist
             apply_actions = evaluator._apply_actions
             step_count = [0]
 
@@ -208,6 +225,8 @@ def main():
                     robot.release_grasp_immediately(arm=arm)
             print(f"=== stale assisted grasp before rollout {i + 1}: {stale or 'none'}", flush=True)
             policy_time[0] = 0.0
+            if assist is not None:
+                assist.reset()
             if tracer is not None:
                 tracer.reset()
                 step_count[0] = 0
@@ -248,6 +267,8 @@ def main():
                 "video_path": os.path.join(video_dir, stem + ".mp4") if write_video else "",
                 "json_path": os.path.join(json_dir, stem + ".json"),
             }
+            if assist is not None:
+                row.update(assist.summary())
             if tracer is not None:
                 row["trace_path"], summary = tracer.finish(stem)
                 row.update(summary)
