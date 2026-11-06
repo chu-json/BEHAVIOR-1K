@@ -210,3 +210,25 @@ Run dir: /home/behavior/ext/runs/val10_full_fixed (traces/ has per-step CSVs). S
 ## Rollout report
 `python steering/make_report.py --run <run dir> --batch1 <pre-fix run dir> --out /home/behavior/ext/report`
 -> /home/behavior/ext/report/index.html (stats table; success + failure cases with video, keyframes, trace plot).
+
+## Why only ~40%? Environment differences vs 2025 (2026-11-05)
+Comet issue #17 reports 10/10 with this checkpoint on these 10 instances on BEHAVIOR 3.7, so the gap is ours.
+`steering/check_robot_vs_2025.py` (live robot vs. 2025 demo data / v3.7.2 source):
+- Cameras: identical. Pose rel. to base at reset within 0.6 mm and 0.00 deg of the 2025 demos for all three;
+  intrinsics identical (head fx 306 @ 720, hfov 99.3; wrists fx 388.7 @ 480, hfov 63.4).
+- **Base mass: robot asset default 47.6 kg; fork evaluator overrides it to 250 kg** (EVAL_BASE_LINK_MASS in
+  eval/evaluator.py). v3.7.2's eval did not override it. Comet's base actions are velocities learned on 47.6 kg.
+- Finger links have mesh collision (8 meshes each), so the fork's warp toggle check can see them.
+- Press (toggle) rule: 2025 = PhysX sphere overlap of marker vs finger links + finger contact, 5 steps;
+  fork = warp point-to-finger-mesh distance < marker radius + contact, 0.15 s. Shadow-tracked both
+  (rollout_trace.py `overlap_2025`, `fork_toggle_timer_s`): in successes both fire together (5 overlap steps,
+  timer 0.167 s); in every failure both read 0 all episode. => The press rule is NOT the cause.
+  (`finger_contact_radio` column reads 0 even in successes: wrong buffer, ignore it.)
+- Other diffs: fork loads only task rooms (2025 eval default loaded the whole house); Isaac Sim 4.5 -> 5.1;
+  robot assets 3.7 -> 3.8.2 (cameras/joints verified identical, dynamics not verified).
+
+### Campaign 1 (steering/campaign.sh): full-res, fix on, timeout 3000, traced
+- massA_default_s0 (47.6 kg, seeds 0-9): **6/10** (vs 4/10 at 250 kg, val10_full_fixed). 295 and 203 now succeed.
+  One success took 2711 steps (longest so far).
+- massB_eval_s10 (250 kg, seeds 10-19), massC_default_s10 (47.6 kg, seeds 10-19): running.
+- Queued after: campaign2.sh = massD (47.6 kg + whole house) and massE (47.6 kg, seeds 20-29, timeout 4299).
