@@ -123,6 +123,11 @@ def main():
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--control-mode", default="receeding_horizon")
     ap.add_argument("--max-len", type=int, default=32)
+    ap.add_argument(
+        "--prompt",
+        default=None,
+        help="Override the task prompt (default: Comet's scripts/task_mapping.json entry for --task).",
+    )
     args = ap.parse_args()
 
     net = install_omnigibson_shim()
@@ -137,6 +142,10 @@ def main():
     comet_policy = B1KPolicyWrapper(
         openpi_policy, task_name=args.task, control_mode=args.control_mode, max_len=args.max_len
     )
+    if args.prompt is not None:
+        # B1KPolicyWrapper sends self.task_prompt as the "prompt" on every inference call.
+        comet_policy.task_prompt = args.prompt
+    logging.info(f"PROMPT in use: {comet_policy.task_prompt!r}")
     server = net.WebsocketPolicyServer(
         policy=BatchedCometPolicy(comet_policy, openpi_policy),
         host="0.0.0.0",
