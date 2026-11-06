@@ -12,6 +12,7 @@ example cases (video, keyframes, per-step trace plot) for one success and each f
 import argparse
 import csv
 import html
+import json
 import math
 import os
 import shutil
@@ -47,11 +48,47 @@ def load_trace(path):
         "step": num("step"),
         "dist": np.minimum(num("finger_button_dist_left"), num("finger_button_dist_right")),
         "z": num("radio_z"),
+        "bx": num("base_x"),
+        "by": num("base_y"),
+        "byaw": num("base_yaw"),
         "grasp": (num("grasp_radio_left") > 0) | (num("grasp_radio_right") > 0),
         "contact": num("finger_contact_radio") if "finger_contact_radio" in t[0] else None,
         "overlap25": num("overlap_2025") if "overlap_2025" in t[0] else None,
         "timer": num("fork_toggle_timer_s") if "fork_toggle_timer_s" in t[0] else None,
     }
+
+
+TRO = (
+    "/home/behavior/BEHAVIOR-1K/datasets/2026-challenge-task-instances/scenes/house_double_floor_lower/json/"
+    "house_double_floor_lower_task_turning_on_radio_instances/"
+    "house_double_floor_lower_task_turning_on_radio_0_{}_template-tro_state.json"
+)
+
+
+def _yaw(q):
+    x, y, z, w = q
+    return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+
+
+def _wrap(a):
+    return math.atan2(math.sin(a), math.cos(a))
+
+
+def instance_geometry(inst):
+    d = json.load(open(TRO.format(inst)))
+    rb = d["robot_poses"]["R1Pro"][0]
+    rx, ry = d["radio_receiver.n.01_1"]["root_link"]["pos"][:2]
+    dx, dy = rx - rb["position"][0], ry - rb["position"][1]
+    bearing = math.degrees(_wrap(math.atan2(dy, dx) - _yaw(rb["orientation"])))
+    return {"bearing": bearing, "dist": math.hypot(dx, dy), "radio_xy": (rx, ry)}
+
+
+def min_heading_err(tr, radio_xy):
+    rx, ry = radio_xy
+    errs = [
+        abs(math.degrees(_wrap(math.atan2(ry - y, rx - x) - yw))) for x, y, yw in zip(tr["bx"], tr["by"], tr["byaw"])
+    ]
+    return min(errs)
 
 
 def max_run(flags):
@@ -180,12 +217,28 @@ def main():
     # Instance x condition grid.
     insts = sorted({int(r["instance_id"]) for _, _, rows in conds for r in rows})
     p.append(
-        "<h2>Outcome per instance</h2><table><tr><th>instance</th>"
+        "<h2>Outcome per instance</h2><table><tr><th>instance</th><th>radio bearing at start</th>"
+        "<th>radio distance</th><th>best heading alignment (median over rollouts)</th>"
         + "".join(f"<th>{html.escape(lbl)}</th>" for lbl, _, _ in conds)
         + "<th>total</th></tr>"
     )
     for i in insts:
-        cells, tot_k, tot_n = [], 0, 0
+        geo = instance_geometry(i)
+        aligns = [
+            min_heading_err(r["_trace"], geo["radio_xy"])
+            for _, _, rows in conds
+            for r in rows
+            if int(r["instance_id"]) == i and r["_trace"] is not None
+        ]
+        side = "left" if geo["bearing"] > 0 else "right"
+        cells, tot_k, tot_n = (
+            [
+                f"<td>{geo['bearing']:+.0f}&deg; ({side})</td><td>{geo['dist']:.2f} m</td>"
+                f"<td>{np.median(aligns):.0f}&deg;</td>"
+            ],
+            0,
+            0,
+        )
         for _, _, rows in conds:
             rs = [r for r in rows if int(r["instance_id"]) == i]
             txt = " ".join(
@@ -197,7 +250,13 @@ def main():
             tot_n += len(rs)
             cells.append(f"<td>{txt or '-'}</td>")
         p.append(f"<tr><td>{i}</td>{''.join(cells)}<td>{tot_k}/{tot_n}</td></tr>")
-    p.append("</table><p>S&lt;steps&gt; = success at that step, F = failure. Hover a cell for seed and mode.</p>")
+    p.append(
+        "</table><p>S&lt;steps&gt; = success at that step, F = failure. Hover a cell for seed and mode. "
+        "Bearing = direction of the radio from the robot's starting heading (+ = to its left). Best heading "
+        "alignment = smallest angle between where the base faces and the radio during the rollout (0&deg; = "
+        "facing it squarely). The 200 training demos are balanced: 96 start with the radio on the left, 104 on "
+        "the right.</p>"
+    )
 
     # Success-step histogram.
     fig, ax = plt.subplots(figsize=(8, 2.8), constrained_layout=True)

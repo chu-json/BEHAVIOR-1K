@@ -232,3 +232,12 @@ Comet issue #17 reports 10/10 with this checkpoint on these 10 instances on BEHA
   One success took 2711 steps (longest so far).
 - massB_eval_s10 (250 kg, seeds 10-19), massC_default_s10 (47.6 kg, seeds 10-19): running.
 - Queued after: campaign2.sh = massD (47.6 kg + whole house) and massE (47.6 kg, seeds 20-29, timeout 4299).
+- Campaign 1 results: massB (250 kg, s10-19) **7/10**; massC (47.6 kg, s10-19) **4/10**.
+  Pooled: 250 kg 11/20, 47.6 kg 10/20 => **base mass does not matter**; the 4/10 vs 6/10 was noise.
+  Base motion is also nearly identical (peak speed 0.234 vs 0.238 m/s, distance 1.07 vs 1.17 m).
+- Overall with the stale-grasp fix: **21/40 = 52.5%** (Wilson 95% CI ~37-68%), within Comet's 40-80%.
+- Instance difficulty dominates: 242 4/4; 109, 181, 187, 203 3/4; 139, 214 2/4; 295 1/4; **197, 211 0/4**.
+  Radio to robot's left at start: 16/24; to its right: 4/16. The 200 training demos are balanced (96 left /
+  104 right), so it's not missing coverage. The robot does turn the correct way; the always-fail instances
+  never align squarely with the radio (best heading error 197: 13-31 deg, 211: 28-34 deg; successes ~0-11).
+- Successes now range 907-2711 steps; massE uses the full 4299 timeout to check for late successes.
