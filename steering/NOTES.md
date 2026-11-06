@@ -318,7 +318,7 @@ Pooled over both seeds (10 rollouts per cell):
   the radio up" (A 10/10, B 8/8 grasped). Raw "lifted %" dips (e.g. B 80%) come only from rollouts that never
   grasped.
 - Paraphrase P1: no meaningful change for either checkpoint.
-- pt50 is much weaker than the radio SFT on this task (19/50 vs 45/50 pooled over prompts); its lowest cells
+- pt50 is much weaker than the radio SFT on this task (18/50 vs 45/50 pooled over prompts); its lowest cells
   (P3 2/10, P4 3/10) are within noise of P0 (4/10) at n=10.
 => Comet's behavior on this task is not steerable through the language prompt (hand choice, lifting); the
    prompt mostly acts as a task identifier.
