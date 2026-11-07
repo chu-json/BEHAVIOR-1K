@@ -369,3 +369,16 @@ Outputs: /home/behavior/ext/runs/day/{base_sweep,obs_record,probe,motor}; log /h
   (left path - right path) toward the left arm (median +5.9 / +9.1 m) => generic text effect, not instruction
   following. EEF paths ~70 m per 3000 steps (flailing). Analysis script: scratch base_sweep_analysis.py (uses
   motor_report.metrics on base_sweep traces).
+- Closed-loop motor commands (120 rollouts, 1000 steps; base + Comet A: 3 setups x seeds 0,1; pt50: seed 0).
+  `steering/motor_contrasts.py` (paired per setup+seed, expected > 0):
+  | test | base pi0.5 | Comet A | pt50 |
+  |---|---|---|---|
+  | stay still vs nonsense (less motion) | 5/6, median 10 m | 4/6, ~0.3 m | 0/3 |
+  | turn left vs turn right (yaw) | 5/6, median +41 deg (noisy) | 3/6 | 3/3, +271/+4/+354 deg |
+  | raise left vs raise right (hand height) | 1/6 (reversed, as in probe) | 4/6, ~0.02 m | 2/3, ~0.03 m |
+  | forward vs stay still (forward disp.) | 2/6 | 2/6 | 2/3 |
+  Successes within 1000 steps: base 0/48, A 2/48, pt50 0/24.
+- Summary page: /home/behavior/ext/runs/day/index.html (links gallery, base sweep, probe, motor reports).
+=> Comet A is not language-steerable (prompt = task identifier). Base pi0.5 follows "stay still" (probe + closed
+   loop), weakly "turn left/right", and puts left/right-arm words on the wrong arm (consistent with an ALOHA-style
+   action-slot convention). pt50: possible turn signal, needs more seeds.
