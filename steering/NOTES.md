@@ -347,3 +347,19 @@ Campaign (`steering/day_campaign.py`, detached, sleep inhibitor, resumable):
  5. motor prompts (P0, raise left/right arm, turn left/right, move forward, stay still, nonsense) on base and
     Comet A, setups 242/203/187, seed 0, 1000 steps
 Outputs: /home/behavior/ext/runs/day/{base_sweep,obs_record,probe,motor}; log /home/behavior/ext/logs/day_campaign.log.
+### Day campaign results so far (2026-11-06 17:25)
+- Base pi0.5, P0, 10 rollouts: 0/10; never grasps; closest finger 13-117 cm; radio bumped up 14-17 cm in 3/10
+  without a grasp (flailing arms). Gallery: /home/behavior/ext/runs/day/base_watch/all.html.
+- Comet A, P0, seed 2 (obs recording): 4/5.
+- Counterfactual prompt probe (150 obs per model x state set; report /home/behavior/ext/runs/day/probe/index.html).
+  Opposite-instruction pair contrasts (cancel generic "extra words" effects):
+  | contrast | base (comet st / base st) | A (comet / base) | pt50 (comet / base) |
+  |---|---|---|---|
+  | left-hand vs right-hand arm bias | null / null | null / null | null / null |
+  | raise-left vs raise-right arm bias | -0.239 p=3e-9 / -0.164 p=3e-12 (REVERSED) | null / null | -0.029 p=0.02 / null |
+  | turn-left vs turn-right wz | +0.001 p=1e-9 / null | +0.003 p=0.03 / +0.003 p=0.04 | +0.006 p=0.004 / null |
+  "Stay still" vs controls: base strongly less motion (p=6e-21 / 8e-16); A weak (base states only); pt50 no.
+  Effect ratios (prompt change / noise change): base 0.1-0.7, A 0.5-1.7, pt50 0.4-1.3.
+  Single-prompt "followed" verdicts can be generic text effects (e.g. base P2 and P3 shift arm bias identically).
+  Hypothesis for the reversed raise-left/right in base pi0.5: left/right action-slot convention of its pretraining
+  embodiments differs from the B1K 23-d layout (left arm 7:14, right 15:22). Closed-loop motor test checks this.
