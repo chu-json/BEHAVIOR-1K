@@ -51,6 +51,33 @@ def sign_test_p(x):
     return min(1.0, p)
 
 
+CONTROLS = ("X_nonsense", "X_empty")
+PAIRS = [
+    ("P2", "P3", "arm_bias", "left-hand vs right-hand"),
+    ("M_left_arm_up", "M_right_arm_up", "arm_bias", "raise left vs raise right"),
+    ("M_turn_left", "M_turn_right", "turn_rate", "turn left vs turn right"),
+]
+
+
+def specific(res, pid, key, sgn):
+    """Control-adjusted test: the prompt's shift minus the mean shift of the nonsense/empty prompts, sign-tested per
+    observation in the expected direction. Passes if the mean has the expected sign and p < 0.05."""
+    ctrl = [res[c]["dirs"][key]["vec"] for c in CONTROLS if c in res]
+    if not ctrl:
+        return "no controls", False
+    v = res[pid]["dirs"][key]["vec"] - np.mean(ctrl, axis=0)
+    pval = sign_test_p(v)
+    return f"vs controls: {v.mean():+.3f}, p={pval:.2g}", bool(np.sign(v.mean()) == sgn and pval < 0.05)
+
+
+def pair_contrast(res, a, b, key):
+    """Opposite-instruction contrast readout(a) - readout(b); cancels any generic 'extra words' effect."""
+    if a not in res or b not in res:
+        return None
+    v = res[a]["dirs"][key]["vec"] - res[b]["dirs"][key]["vec"]
+    return float(v.mean()), float((v > 0).mean()), sign_test_p(v)
+
+
 def readouts(chunks, proprio):
     """chunks (N, P, S, 32, 23) -> dict of (N, P, S) arrays."""
 
@@ -95,6 +122,7 @@ def analyze(path):
                 "frac_pos": float((delta > 0).mean()),
                 "p": sign_test_p(delta),
                 "noise": float(scale),
+                "vec": delta,
             }
         res[pid] = {"ratio": ratio, "dirs": dirs, "text": str(d["prompt_text"][j])}
     return str(d["model"]), n, noise, res
@@ -138,8 +166,10 @@ def main():
                 key, sgn = exp
                 dd = r["dirs"][key]
                 frac = dd["frac_pos"] if sgn > 0 else 1 - dd["frac_pos"]
-                ok = (np.sign(dd["mean_delta"]) == sgn) and dd["p"] < 0.05
-                verdict = f"<span class={'yes' if ok else 'no'}>{'yes' if ok else 'no'}</span>"
+                spec_txt, ok = specific(res, pid, key, sgn)
+                verdict = (
+                    f"<span class={'yes' if ok else 'no'}>{'yes' if ok else 'no'}</span> <small>{spec_txt}</small>"
+                )
                 extra = (
                     f"<td class=l>{key} {'up' if sgn > 0 else 'down'}</td><td>{dd['mean_delta']:+.3f} "
                     f"({dd['noise']:.3f})</td><td>{100 * frac:.0f}%</td><td>{dd['p']:.3g}</td><td>{verdict}</td>"
@@ -147,6 +177,20 @@ def main():
             else:
                 extra = "<td class=l>-</td><td></td><td></td><td></td><td></td>"
             p.append(f"<tr><td class=l>{pid}</td><td class=l>{html.escape(r['text'])}</td>{cells}{extra}</tr>")
+        p.append(
+            "</table><p><b>Opposite-instruction contrasts</b> (first minus second; expected &gt; 0). These cancel any "
+            "generic effect of adding words.</p><table><tr><th class=l>contrast</th><th>readout</th><th>mean</th>"
+            "<th>% obs &gt; 0</th><th>p</th><th>followed?</th></tr>"
+        )
+        for a, b, key, label in PAIRS:
+            c = pair_contrast(res, a, b, key)
+            if c is None:
+                continue
+            ok = c[0] > 0 and c[2] < 0.05
+            p.append(
+                f"<tr><td class=l>{label}</td><td>{key}</td><td>{c[0]:+.3f}</td><td>{100 * c[1]:.0f}%</td>"
+                f"<td>{c[2]:.2g}</td><td><span class={'yes' if ok else 'no'}>{'yes' if ok else 'no'}</span></td></tr>"
+            )
         p.append(
             "</table><p>Noise floor (mean |action difference| between two noise samples, P0): "
             + ", ".join(f"{g} {v:.3f}" for g, v in noise.items())
@@ -166,7 +210,13 @@ def main():
                 key, sgn = EXPECT[pid]
                 dd = r["dirs"][key]
                 line += f" | {key} {'+' if sgn > 0 else '-'} expected: delta {dd['mean_delta']:+.3f} p={dd['p']:.3g}"
+                spec_txt, ok = specific(res, pid, key, sgn)
+                line += f" | {spec_txt} -> {'FOLLOWED' if ok else 'not followed'}"
             print(line)
+        for a, b, key, label in PAIRS:
+            c = pair_contrast(res, a, b, key)
+            if c is not None:
+                print(f"  pair {label:28s} {key}: {c[0]:+.3f} ({100 * c[1]:.0f}% obs > 0) p={c[2]:.2g}")
 
 
 if __name__ == "__main__":
