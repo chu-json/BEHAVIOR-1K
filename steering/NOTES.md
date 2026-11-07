@@ -363,3 +363,9 @@ Outputs: /home/behavior/ext/runs/day/{base_sweep,obs_record,probe,motor}; log /h
   Single-prompt "followed" verdicts can be generic text effects (e.g. base P2 and P3 shift arm bias identically).
   Hypothesis for the reversed raise-left/right in base pi0.5: left/right action-slot convention of its pretraining
   embodiments differs from the B1K 23-d layout (left arm 7:14, right 15:22). Closed-loop motor test checks this.
+- Base pi0.5 exact sweep (P0-P4 x 5 setups x seeds 0,1 = 50 rollouts, 3000 steps): **0/50**, never grasped.
+  Left hand closest to the button in 7-9/10 under every prompt; radio bumped up (no grasp) 3/10 P0, 3 P1, 4 P2,
+  4 P3, 5 P4 (most under "without picking the radio up"). Paired arm activity: P2 and P3 BOTH shift
+  (left path - right path) toward the left arm (median +5.9 / +9.1 m) => generic text effect, not instruction
+  following. EEF paths ~70 m per 3000 steps (flailing). Analysis script: scratch base_sweep_analysis.py (uses
+  motor_report.metrics on base_sweep traces).
