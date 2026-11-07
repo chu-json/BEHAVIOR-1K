@@ -1,9 +1,12 @@
 """Closed-loop opposite-pair / control contrasts for the motor-command runs (/home/behavior/ext/runs/day/motor)."""
 
-import csv, json, os, sys
+import csv
+import json
+import os
+import sys
 
 sys.path.insert(0, "/home/behavior/BEHAVIOR-1K/steering")
-from motor_report import metrics
+from motor_report import metrics  # noqa: E402
 
 root = "/home/behavior/ext/runs/day/motor"
 groups = json.load(open(f"{root}/groups.json"))

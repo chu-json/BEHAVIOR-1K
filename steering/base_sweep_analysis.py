@@ -1,9 +1,11 @@
 """Base pi0.5 exact-sweep analysis: per-prompt hand, lift, and per-arm activity (uses motor_report.metrics)."""
 
-import csv, sys, statistics as st
+import csv
+import sys
+import statistics as st
 
 sys.path.insert(0, "/home/behavior/BEHAVIOR-1K/steering")
-from motor_report import metrics
+from motor_report import metrics  # noqa: E402
 
 rows = list(csv.DictReader(open("/home/behavior/ext/runs/day/base_sweep/results.csv")))
 print("rollouts", len(rows), "successes", sum(r["success"] == "1" for r in rows))
