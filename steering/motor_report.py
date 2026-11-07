@@ -79,7 +79,7 @@ def main():
             m = metrics(r["trace_path"])
             m["success"] = int(r["success"])
             m["video"] = r["video_path"]
-            data.setdefault((g["checkpoint"], g["prompt_id"]), {})[r["instance_id"]] = m
+            data.setdefault((g["checkpoint"], g["prompt_id"]), {})[f"{r['instance_id']}_s{r['seed']}"] = m
     models = list(dict.fromkeys(g["checkpoint"] for g in groups))
     prompts = {g["prompt_id"]: g["prompt"] for g in groups}
     css = (
@@ -91,9 +91,9 @@ def main():
     p = [
         f"<!doctype html><meta charset=utf-8><title>Motor-command steerability</title>{css}",
         "<h1>Closed-loop motor-command prompts</h1>",
-        "<p>1000-step episodes, setups 242/203/187, seed 0, whole house, 47.6 kg base. Values are means over setups. "
+        "<p>1000-step episodes, setups 242/203/187 (labels setup_seed), whole house, 47.6 kg base. Values are means over setups. "
         "<b>Followed?</b> compares each prompt with P0 on the same setup: the change in the expected readout must "
-        "have the requested sign on every setup (k/n shown). Units: m, deg.</p>",
+        "have the requested sign on every setup+seed pair (k/n shown). Units: m, deg.</p>",
     ]
     lines = []
     for model in models:

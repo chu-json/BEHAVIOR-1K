@@ -71,6 +71,15 @@ def jobs():
     return J
 
 
+def extra_jobs():
+    """Follow-up: more closed-loop motor-command data (seed 1 for base + Comet A; pt50 seed 0)."""
+    J = []
+    for m, seed in (("C_pi05_base", 1), ("A_radio_sft", 1), ("B_pt50", 0)):
+        for pid in MOTOR:
+            J.append(rollout_job(m, pid, SETUPS3, [seed] * 3, 1000, f"{DAY}/motor"))
+    return J
+
+
 def log(msg):
     print(time.strftime("%F %T"), msg, flush=True)
 
@@ -257,7 +266,7 @@ def reports():
 
 
 def main():
-    J = jobs()
+    J = jobs() + (extra_jobs() if "--extra" in sys.argv else [])
     for root in {j["root"] for j in J if j["kind"] == "rollout"}:
         write_groups(root, J)
     watchdog = subprocess.Popen(["bash", f"{REPO}/steering/gpu_watchdog.sh", "1000", f"{LOGS}/gpu_watchdog.log"])
