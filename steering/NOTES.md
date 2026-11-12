@@ -382,3 +382,9 @@ Outputs: /home/behavior/ext/runs/day/{base_sweep,obs_record,probe,motor}; log /h
 => Comet A is not language-steerable (prompt = task identifier). Base pi0.5 follows "stay still" (probe + closed
    loop), weakly "turn left/right", and puts left/right-arm words on the wrong arm (consistent with an ALOHA-style
    action-slot convention). pt50: possible turn signal, needs more seeds.
+- Watch page (2026-11-12): https://claude.ai/artifact/QovHugAvtWgyjHQ1bwp3d6 (private). Built by
+  `steering/build_watch_site.py --out /home/behavior/ext/site`: one example rollout per prompt per model (setup 242,
+  seed 0; sweep prompts P0-P4 at 3000 steps, motor prompts at 1000 steps), videos re-encoded at x264 CRF 32
+  (39 videos, 63 MB; published in two batches to stay under the 64 MB per-publish limit), plus side-by-side tables.
+- Comet checkpoints: the submission repo has 26 (12 task-specific SFT/RFT + 14 snapshots of pt7/pt10/pt12/pt50);
+  each of the 50 tasks used the best one on its validation set. Radio = pi05-turning_on_radio-sft.
