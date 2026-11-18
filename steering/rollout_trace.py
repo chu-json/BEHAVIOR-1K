@@ -38,6 +38,10 @@ TRACE_FIELDS = [
     "eef_right_z",
     "grip_left",  # gripper opening (sum of the two finger joints), meters
     "grip_right",
+    "torso_q0",  # torso joint positions, rad
+    "torso_q1",
+    "torso_q2",
+    "torso_q3",
 ]
 SUMMARY_FIELDS = [
     "min_finger_button_dist",
@@ -114,6 +118,8 @@ class RolloutTracer:
             for axis, v in zip("xyz", p_rel.tolist()):
                 row[f"eef_{side}_{axis}"] = round(v, 4)
             row[f"grip_{side}"] = round(float(q[robot.gripper_control_idx[arm]].sum()), 4)
+        for k, v in enumerate(q[robot.trunk_control_idx].tolist()):
+            row[f"torso_q{k}"] = round(v, 4)
         self.rows.append(row)
 
     def finish(self, stem):

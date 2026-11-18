@@ -146,3 +146,84 @@ class AlignAssist:
                 for d in self.log + ([self._cur] if self.state != "policy" and self._cur else [])
             ),
         }
+
+
+class ApproachAssist:
+    """Shared-autonomy start: before the policy acts, drive the base to `standoff_m` from the radio's true position and
+    face it, holding torso/arms at their current positions with grippers open; then hand over to the policy.
+    Used via run_rollouts.py --approach-assist <standoff_m>.
+    """
+
+    def __init__(self, evaluator, standoff_m=0.8, max_steps=600, max_v=0.3, max_wz=0.6, done_deg=4.0, settle_steps=10):
+        self.ev = evaluator
+        self.p = dict(
+            standoff_m=standoff_m,
+            max_steps=max_steps,
+            max_v=max_v,
+            max_wz=max_wz,
+            done_deg=done_deg,
+            settle_steps=settle_steps,
+        )
+        self.reset()
+
+    def reset(self):
+        self.state = "approach"
+        self.step = 0
+        self.hold = None
+        self.log = {}
+
+    @property
+    def active(self):
+        return int(self.state != "policy")
+
+    def _hold_action(self, robot):
+        a = th.zeros((1, robot.action_dim))
+        q = robot.get_joint_positions()
+        jidx = robot.controller_joint_idx
+        for name, aidx in robot.controller_action_idx.items():
+            if name.startswith(("arm", "trunk")):
+                a[0, aidx] = q[jidx[name]]
+            elif name.startswith("gripper"):
+                a[0, aidx] = 1.0
+        return a
+
+    def wrap(self, forward):
+        align = AlignAssist(self.ev)
+
+        def assisted_forward(*args, **kwargs):
+            self.step += 1
+            if self.state == "policy":
+                return forward(*args, **kwargs)
+            robot, x, y, yaw, err, dist, _ = align._pose()
+            if self.hold is None:
+                self.hold = self._hold_action(robot)
+                self.log["start_dist"] = round(dist, 2)
+                self.log["start_err"] = round(math.degrees(err), 1)
+            p = self.p
+            a = self.hold.clone()
+            base = robot.controller_action_idx["base"]
+            if self.state == "approach":
+                done = dist <= p["standoff_m"] + 0.05 and abs(math.degrees(err)) < p["done_deg"]
+                if done or self.step >= p["max_steps"]:
+                    self.state, self._settle = "settle", 0
+                else:
+                    # robot-frame command: turn toward the radio; drive forward only when roughly facing it
+                    wz = max(-p["max_wz"], min(p["max_wz"], 2.0 * err))
+                    v = 0.0
+                    if abs(err) < math.radians(25) and dist > p["standoff_m"]:
+                        v = max(0.05, min(p["max_v"], 1.5 * (dist - p["standoff_m"])))  # floor avoids creeping
+                    a[0, base] = th.tensor([v, 0.0, wz], dtype=a.dtype)
+                    return a
+            if self.state == "settle":
+                self._settle += 1
+                if self._settle <= p["settle_steps"]:
+                    return a
+                self.log.update(end_step=self.step, end_dist=round(dist, 2), end_err=round(math.degrees(err), 1))
+                self.state = "policy"
+                self.ev.policy.reset()
+            return forward(*args, **kwargs)
+
+        return assisted_forward
+
+    def summary(self):
+        return {"approach_log": ";".join(f"{k}={v}" for k, v in self.log.items())}

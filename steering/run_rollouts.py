@@ -92,6 +92,14 @@ def parse_args():
         "pause the policy, rotate in place to face the radio, then resume.",
     )
     ap.add_argument("--assist-threshold-deg", type=float, default=15.0)
+    ap.add_argument(
+        "--approach-assist",
+        type=float,
+        default=None,
+        metavar="STANDOFF_M",
+        help="Shared-autonomy start (steering/align_assist.py ApproachAssist): drive to this distance from the radio, "
+        "facing it, before handing over to the policy.",
+    )
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--output-dir", required=True)
@@ -173,6 +181,8 @@ def main():
             fields = CSV_FIELDS + ["trace_path"] + SUMMARY_FIELDS
         if args.align_assist:
             fields = fields + ["assist_interventions", "assist_log"]
+        elif args.approach_assist is not None:
+            fields = fields + ["approach_log"]
         writer = csv.DictWriter(f, fieldnames=fields)
         if new_csv:
             writer.writeheader()
@@ -195,6 +205,11 @@ def main():
             from steering.align_assist import AlignAssist
 
             assist = AlignAssist(evaluator, threshold_deg=args.assist_threshold_deg)
+            evaluator.policy.forward = assist.wrap(evaluator.policy.forward)
+        elif args.approach_assist is not None:
+            from steering.align_assist import ApproachAssist
+
+            assist = ApproachAssist(evaluator, standoff_m=args.approach_assist)
             evaluator.policy.forward = assist.wrap(evaluator.policy.forward)
 
         tracer = None

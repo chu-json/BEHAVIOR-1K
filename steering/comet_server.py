@@ -80,11 +80,47 @@ def install_omnigibson_shim():
     return net
 
 
+class ActionWiring:
+    """Optional re-wiring of a policy's predicted action chunk before Comet's wrapper queues it.
+
+    delta_joints: the policy predicts torso/arm joints as offsets from the current joint positions (base pi0.5's
+      pre-training convention); add the current joints back. Requires a checkpoint whose action norm stats for those
+      dims are delta stats (steering/delta_norm_stats.py).
+    freeze_torso: hold the torso at its episode-start position (removes base pi0.5's torso folding).
+    """
+
+    # 61-d proprio (fork layout) -> 23-d action layout
+    JOINTS = [(slice(3, 7), slice(53, 57)), (slice(7, 14), slice(3, 10)), (slice(15, 22), slice(28, 35))]
+
+    def __init__(self, policy, delta_joints=False, freeze_torso=False):
+        self.policy = policy
+        self.delta_joints = delta_joints
+        self.freeze_torso = freeze_torso
+        self.torso0 = None
+
+    def reset(self):
+        self.torso0 = None
+
+    def infer(self, batch):
+        out = self.policy.infer(batch)
+        a = np.array(out["actions"], dtype=np.float64, copy=True)
+        q = np.asarray(batch["observation/state"], dtype=np.float64)
+        if self.delta_joints:
+            for asl, qsl in self.JOINTS:
+                a[:, asl] += q[qsl]
+        if self.freeze_torso:
+            if self.torso0 is None:
+                self.torso0 = q[53:57].copy()
+            a[:, 3:7] = self.torso0
+        return {**out, "actions": a}
+
+
 class BatchedCometPolicy:
     """Adapts Comet's B1KPolicyWrapper (unbatched) to the fork's batched obs, num_envs == 1 only."""
 
-    def __init__(self, comet_policy, openpi_policy, dump_dir=None):
+    def __init__(self, comet_policy, openpi_policy, dump_dir=None, wiring=None):
         self.comet = comet_policy
+        self.wiring = wiring
         self.openpi_policy = openpi_policy
         self._need_seed = True
         # Optional: save the exact (preprocessed) observation at every inference step, for offline prompt probing
@@ -97,6 +133,8 @@ class BatchedCometPolicy:
 
     def reset(self):
         self.comet.reset()
+        if self.wiring is not None:
+            self.wiring.reset()
         self._need_seed = True
         self._episode += 1
         self._step = 0
@@ -149,6 +187,8 @@ def main():
         default=None,
         help="Override the task prompt (default: Comet's scripts/task_mapping.json entry for --task).",
     )
+    ap.add_argument("--delta-joints", action="store_true", help="See ActionWiring (needs delta norm stats).")
+    ap.add_argument("--freeze-torso", action="store_true", help="Hold the torso at its episode-start position.")
     args = ap.parse_args()
 
     net = install_omnigibson_shim()
@@ -160,15 +200,18 @@ def main():
     train_config = _config.get_config(args.config)
     # Norm stats come from <ckpt>/assets/<asset_id>/norm_stats.json (the radio checkpoint ships its own).
     openpi_policy = _policy_config.create_trained_policy(train_config, args.ckpt)
-    comet_policy = B1KPolicyWrapper(
-        openpi_policy, task_name=args.task, control_mode=args.control_mode, max_len=args.max_len
-    )
+    wiring = None
+    inner = openpi_policy
+    if args.delta_joints or args.freeze_torso:
+        wiring = inner = ActionWiring(openpi_policy, delta_joints=args.delta_joints, freeze_torso=args.freeze_torso)
+        logging.info(f"ACTION WIRING: delta_joints={args.delta_joints} freeze_torso={args.freeze_torso}")
+    comet_policy = B1KPolicyWrapper(inner, task_name=args.task, control_mode=args.control_mode, max_len=args.max_len)
     if args.prompt is not None:
         # B1KPolicyWrapper sends self.task_prompt as the "prompt" on every inference call.
         comet_policy.task_prompt = args.prompt
     logging.info(f"PROMPT in use: {comet_policy.task_prompt!r}")
     server = net.WebsocketPolicyServer(
-        policy=BatchedCometPolicy(comet_policy, openpi_policy, dump_dir=args.dump_obs),
+        policy=BatchedCometPolicy(comet_policy, openpi_policy, dump_dir=args.dump_obs, wiring=wiring),
         host="0.0.0.0",
         port=args.port,
         metadata=openpi_policy.metadata,
