@@ -100,6 +100,12 @@ def parse_args():
         help="Shared-autonomy start (steering/align_assist.py ApproachAssist): drive to this distance from the radio, "
         "facing it, before handing over to the policy.",
     )
+    ap.add_argument(
+        "--inject-target",
+        action="store_true",
+        help="Send the radio button position (robot frame) to the "
+        "policy server each step, for its best-of-N critic (privileged information).",
+    )
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--output-dir", required=True)
@@ -187,6 +193,7 @@ def main():
         if new_csv:
             writer.writeheader()
         evaluator.env.world_frame_base_qvel = not args.robot_frame_base_qvel
+        evaluator.env.inject_target = args.inject_target
 
         # Time spent waiting on the policy server (vs. simulating), per rollout.
         policy_time = [0.0]

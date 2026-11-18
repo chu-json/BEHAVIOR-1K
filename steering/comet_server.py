@@ -32,6 +32,7 @@ import numpy as np
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 FORK_NETWORK_UTILS = os.path.join(REPO_ROOT, "OmniGibson", "omnigibson", "eval", "utils", "network_utils.py")
 SEED_KEY = "steering_seed"
+TARGET_KEY = "steering_target"
 
 # Copied from OmniGibson/omnigibson/eval/utils/eval_utils.py (fork, v3.9.3). Must match eval/r1pro.yaml
 # proprio_obs order; steering/compat_wrapper.py asserts the proprio size at runtime.
@@ -92,16 +93,42 @@ class ActionWiring:
     # 61-d proprio (fork layout) -> 23-d action layout
     JOINTS = [(slice(3, 7), slice(53, 57)), (slice(7, 14), slice(3, 10)), (slice(15, 22), slice(28, 35))]
 
-    def __init__(self, policy, delta_joints=False, freeze_torso=False):
+    def __init__(self, policy, delta_joints=False, freeze_torso=False, best_of_n=1):
         self.policy = policy
         self.delta_joints = delta_joints
         self.freeze_torso = freeze_torso
         self.torso0 = None
+        # best-of-N: sample N chunks (different diffusion noise) and keep the one whose predicted hand path (URDF FK)
+        # gets closest to `self.target` (button position in the robot base frame, sent by the client each step).
+        self.best_of_n = best_of_n
+        self.target = None
+        self.last_scores = None
+        if best_of_n > 1:
+            from urdf_fk import R1ProFK
+
+            self.fk = R1ProFK()
 
     def reset(self):
         self.torso0 = None
 
     def infer(self, batch):
+        if self.best_of_n <= 1 or self.target is None:
+            return self._one(batch)
+        cands = [self._one(batch) for _ in range(self.best_of_n)]
+        scores = [self.score(c["actions"]) for c in cands]
+        self.last_scores = scores
+        logging.info(f"best-of-{self.best_of_n}: hand-to-button {min(scores):.3f} m (worst {max(scores):.3f})")
+        return cands[int(np.argmin(scores))]
+
+    def score(self, a):
+        """Closest predicted end-effector distance to the target over the chunk (checked at 4 points)."""
+        best = np.inf
+        for t in (7, 15, 23, 31):
+            h = self.fk.hands(a[t, 3:7], a[t, 7:14], a[t, 15:22])
+            best = min(best, *(np.linalg.norm(h[s] - self.target) for s in ("left", "right")))
+        return float(best)
+
+    def _one(self, batch):
         out = self.policy.infer(batch)
         a = np.array(out["actions"], dtype=np.float64, copy=True)
         q = np.asarray(batch["observation/state"], dtype=np.float64)
@@ -146,6 +173,9 @@ class BatchedCometPolicy:
             assert v.shape[:1] == (1,), f"only num_envs=1 supported; obs[{k!r}] has shape {v.shape}"
             unbatched[k] = v[0]
         seed = unbatched.pop(SEED_KEY, None)
+        target = unbatched.pop(TARGET_KEY, None)
+        if self.wiring is not None and target is not None:
+            self.wiring.target = np.asarray(target, dtype=np.float64).reshape(3)
         if self._need_seed and seed is not None:
             import jax
 
@@ -189,6 +219,13 @@ def main():
     )
     ap.add_argument("--delta-joints", action="store_true", help="See ActionWiring (needs delta norm stats).")
     ap.add_argument("--freeze-torso", action="store_true", help="Hold the torso at its episode-start position.")
+    ap.add_argument(
+        "--best-of-n",
+        type=int,
+        default=1,
+        help="Best-of-N chunk selection with the FK hand-to-button "
+        "critic (needs the client to run with --inject-target).",
+    )
     args = ap.parse_args()
 
     net = install_omnigibson_shim()
@@ -202,9 +239,14 @@ def main():
     openpi_policy = _policy_config.create_trained_policy(train_config, args.ckpt)
     wiring = None
     inner = openpi_policy
-    if args.delta_joints or args.freeze_torso:
-        wiring = inner = ActionWiring(openpi_policy, delta_joints=args.delta_joints, freeze_torso=args.freeze_torso)
-        logging.info(f"ACTION WIRING: delta_joints={args.delta_joints} freeze_torso={args.freeze_torso}")
+    if args.delta_joints or args.freeze_torso or args.best_of_n > 1:
+        wiring = inner = ActionWiring(
+            openpi_policy, delta_joints=args.delta_joints, freeze_torso=args.freeze_torso, best_of_n=args.best_of_n
+        )
+        logging.info(
+            f"ACTION WIRING: delta_joints={args.delta_joints} freeze_torso={args.freeze_torso} "
+            f"best_of_n={args.best_of_n}"
+        )
     comet_policy = B1KPolicyWrapper(inner, task_name=args.task, control_mode=args.control_mode, max_len=args.max_len)
     if args.prompt is not None:
         # B1KPolicyWrapper sends self.task_prompt as the "prompt" on every inference call.

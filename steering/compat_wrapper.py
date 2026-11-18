@@ -19,6 +19,8 @@ from omnigibson.eval.wrappers import DefaultWrapper
 PROPRIO_DIM = 61  # fork eval/r1pro.yaml proprio_obs layout; base_qvel is proprio[0:3]
 BASE_QVEL = slice(0, 3)
 SEED_KEY = "steering_seed"
+TARGET_KEY = "steering_target"  # privileged: radio button position in the robot base frame (best-of-N critic)
+RADIO = "radio_receiver.n.01_1"
 
 
 class CompatWrapper(DefaultWrapper):
@@ -30,6 +32,7 @@ class CompatWrapper(DefaultWrapper):
     def __init__(self, env):
         super().__init__(env=env)
         self.rollout_seed = 0
+        self.inject_target = False  # set by run_rollouts.py --inject-target
 
     def _fix_obs(self, obs, env_idx):
         robot = self.env.scenes[env_idx].robots[0]
@@ -45,6 +48,17 @@ class CompatWrapper(DefaultWrapper):
             proprio[BASE_QVEL] = th.stack([c * vx - s * vy, s * vx + c * vy, wz])
             obs[robot.name]["proprio"] = proprio
         obs[SEED_KEY] = th.tensor([int(self.rollout_seed)], dtype=th.int64)
+        if self.inject_target:
+            import omnigibson.utils.transform_utils as T
+            from omnigibson.object_states import ToggledOn
+
+            entity = self.env.task.object_scopes[env_idx][RADIO]
+            radio = getattr(entity, "wrapped_obj", entity)
+            button = radio.states[ToggledOn].marker.get_position_orientation()[0]
+            rel = T.relative_pose_transform(button, th.tensor([0.0, 0.0, 0.0, 1.0]), *robot.get_position_orientation())[
+                0
+            ]
+            obs[TARGET_KEY] = rel.float().cpu()
         return obs
 
     def _fix_list(self, obs_list, env_indices=None):

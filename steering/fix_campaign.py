@@ -31,6 +31,23 @@ CONDITIONS = [
 ]
 
 
+# Best-of-N steering with a privileged FK critic (V-GPS / RoboMonkey style selection; see NOTES.md).
+CONDITIONS_BEST = [
+    (
+        "C5_delta_torso_approach_best8",
+        DELTA,
+        ["--delta-joints", "--freeze-torso", "--best-of-n", "8"],
+        ["--approach-assist", "0.8", "--inject-target"],
+    ),
+    (
+        "C6_abs_torso_approach_best8",
+        ABS,
+        ["--freeze-torso", "--best-of-n", "8"],
+        ["--approach-assist", "0.8", "--inject-target"],
+    ),
+]
+
+
 def start(ckpt, flags, name, prompt):
     env = dict(os.environ, XLA_PYTHON_CLIENT_PREALLOCATE="false", XLA_PYTHON_CLIENT_MEM_FRACTION="0.32")
     cmd = [
@@ -114,7 +131,7 @@ def main():
     os.makedirs(ROOT, exist_ok=True)
     watchdog = subprocess.Popen(["bash", f"{REPO}/steering/gpu_watchdog.sh", "1000", f"{LOGS}/gpu_watchdog.log"])
     try:
-        for name, ckpt, sflags, rflags in CONDITIONS:
+        for name, ckpt, sflags, rflags in CONDITIONS + (CONDITIONS_BEST if "--best" in sys.argv else []):
             run(name, ckpt, sflags, rflags)
     finally:
         watchdog.terminate()
