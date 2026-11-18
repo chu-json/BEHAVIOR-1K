@@ -88,13 +88,15 @@ class ActionWiring:
       pre-training convention); add the current joints back. Requires a checkpoint whose action norm stats for those
       dims are delta stats (steering/delta_norm_stats.py).
     freeze_torso: hold the torso at its episode-start position (removes base pi0.5's torso folding).
+    freeze_base: zero the base velocity (the policy only moves torso/arms; a client-side approach assist still drives).
     """
 
     # 61-d proprio (fork layout) -> 23-d action layout
     JOINTS = [(slice(3, 7), slice(53, 57)), (slice(7, 14), slice(3, 10)), (slice(15, 22), slice(28, 35))]
 
-    def __init__(self, policy, delta_joints=False, freeze_torso=False, best_of_n=1):
+    def __init__(self, policy, delta_joints=False, freeze_torso=False, best_of_n=1, freeze_base=False):
         self.policy = policy
+        self.freeze_base = freeze_base
         self.delta_joints = delta_joints
         self.freeze_torso = freeze_torso
         self.torso0 = None
@@ -139,6 +141,8 @@ class ActionWiring:
             if self.torso0 is None:
                 self.torso0 = q[53:57].copy()
             a[:, 3:7] = self.torso0
+        if self.freeze_base:
+            a[:, 0:3] = 0.0
         return {**out, "actions": a}
 
 
@@ -219,6 +223,7 @@ def main():
     )
     ap.add_argument("--delta-joints", action="store_true", help="See ActionWiring (needs delta norm stats).")
     ap.add_argument("--freeze-torso", action="store_true", help="Hold the torso at its episode-start position.")
+    ap.add_argument("--freeze-base", action="store_true", help="Zero the policy's base velocity commands.")
     ap.add_argument(
         "--best-of-n",
         type=int,
@@ -239,13 +244,17 @@ def main():
     openpi_policy = _policy_config.create_trained_policy(train_config, args.ckpt)
     wiring = None
     inner = openpi_policy
-    if args.delta_joints or args.freeze_torso or args.best_of_n > 1:
+    if args.delta_joints or args.freeze_torso or args.freeze_base or args.best_of_n > 1:
         wiring = inner = ActionWiring(
-            openpi_policy, delta_joints=args.delta_joints, freeze_torso=args.freeze_torso, best_of_n=args.best_of_n
+            openpi_policy,
+            delta_joints=args.delta_joints,
+            freeze_torso=args.freeze_torso,
+            best_of_n=args.best_of_n,
+            freeze_base=args.freeze_base,
         )
         logging.info(
             f"ACTION WIRING: delta_joints={args.delta_joints} freeze_torso={args.freeze_torso} "
-            f"best_of_n={args.best_of_n}"
+            f"freeze_base={args.freeze_base} best_of_n={args.best_of_n}"
         )
     comet_policy = B1KPolicyWrapper(inner, task_name=args.task, control_mode=args.control_mode, max_len=args.max_len)
     if args.prompt is not None:

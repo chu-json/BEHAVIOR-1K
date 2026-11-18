@@ -47,6 +47,17 @@ CONDITIONS_BEST = [
     ),
 ]
 
+# Arms-only: after the scripted approach the policy may not drive the base (in C3/C4 it drove 1-3.6 m away).
+CONDITIONS_ARMS = [
+    (
+        "C7_delta_torso_base_approach",
+        DELTA,
+        ["--delta-joints", "--freeze-torso", "--freeze-base"],
+        ["--approach-assist", "0.8"],
+    ),
+    ("C8_abs_torso_base_approach", ABS, ["--freeze-torso", "--freeze-base"], ["--approach-assist", "0.8"]),
+]
+
 
 def start(ckpt, flags, name, prompt):
     env = dict(os.environ, XLA_PYTHON_CLIENT_PREALLOCATE="false", XLA_PYTHON_CLIENT_MEM_FRACTION="0.32")
@@ -131,7 +142,11 @@ def main():
     os.makedirs(ROOT, exist_ok=True)
     watchdog = subprocess.Popen(["bash", f"{REPO}/steering/gpu_watchdog.sh", "1000", f"{LOGS}/gpu_watchdog.log"])
     try:
-        for name, ckpt, sflags, rflags in CONDITIONS + (CONDITIONS_BEST if "--best" in sys.argv else []):
+        for name, ckpt, sflags, rflags in (
+            CONDITIONS
+            + (CONDITIONS_BEST if "--best" in sys.argv else [])
+            + (CONDITIONS_ARMS if "--arms" in sys.argv else [])
+        ):
             run(name, ckpt, sflags, rflags)
     finally:
         watchdog.terminate()

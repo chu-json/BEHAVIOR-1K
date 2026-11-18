@@ -388,3 +388,39 @@ Outputs: /home/behavior/ext/runs/day/{base_sweep,obs_record,probe,motor}; log /h
   (39 videos, 63 MB; published in two batches to stay under the 64 MB per-publish limit), plus side-by-side tables.
 - Comet checkpoints: the submission repo has 26 (12 task-specific SFT/RFT + 14 snapshots of pt7/pt10/pt12/pt50);
   each of the 50 tasks used the best one on its validation set. Radio = pi05-turning_on_radio-sft.
+
+## Why base pi0.5 fails, and can we steer it without training? (2026-11-17) — steering/fix_campaign.py
+Diagnosis (base pi0.5 on the 23-d B1K action space, B1K norm stats, absolute joint targets):
+- Not trained on R1Pro/BEHAVIOR at all; openpi README says base checkpoints are for fine-tuning.
+- Action-convention mismatch: openpi pre-training uses joint DELTAS (ALOHA/DROID "use_delta_joint_actions"),
+  Comet's B1K config uses absolute targets. With absolute wiring the first arm target is 0.11/0.59 rad (L/R) away
+  from the current pose (Comet 0.003/0.004), step-to-step 0.014 rad (Comet <= 0.002); torso drifts 0.006 rad/step
+  and folds until the head camera sees the floor; gripper commands normalize to ~0 (half-closed).
+Fixes, all in my code: `comet_server.py --delta-joints` (+ delta norm stats from the 200 radio demos,
+`steering/delta_norm_stats.py` -> /home/behavior/ext/ckpt/pi05_base_b1k_delta), `--freeze-torso`, `--freeze-base`,
+`--best-of-n N` (V-GPS/RoboMonkey-style selection: sample N chunks, keep the one whose URDF-FK hand path gets
+closest to the button; `steering/urdf_fk.py`, validated to 0.00 mm vs proprio eef; button position injected by
+`run_rollouts.py --inject-target`), and `run_rollouts.py --approach-assist 0.8` (scripted drive to 0.8 m facing the
+radio, then hand over). Setups 242 203 109 181 187, seed 0, 1500 steps, whole house, default mass, prompt P0.
+`python steering/fix_report.py --root /home/behavior/ext/runs/fix` (closest = finger-to-button during policy steps):
+| condition | succ | grasp | closest cm med/best | torso drift rad | jitter mm/step |
+|---|---|---|---|---|---|
+| C0 abs (as before) | 0/5 | 0/5 | 30.4 / 13.4 | 1.86 | 14.6 |
+| C1 delta | 0/5 | 0/5 | 42.4 / 31.6 | 3.94 | 2.4 |
+| C2 delta+torso | 0/5 | 0/5 | 50.1 / 38.4 | 0.31 | 1.5 |
+| C3 delta+torso+approach | 0/5 | 0/5 | 27.0 / 14.2 | 0.60 | 1.6 |
+| C4 abs+torso+approach | 0/5 | 0/5 | 20.0 / 15.3 | 0.45 | 11.7 |
+| C5 C3 + best-of-8 | 0/5 | 0/5 | 36.0 / 13.8 | 0.07 | 1.5 |
+| C6 C4 + best-of-8 | 0/5 | 0/5 | 16.0 / 8.1 | 0.14 | 13.4 |
+| C7 delta+torso+base frozen+approach | 0/5 | 0/5 | 69.5 / 60.5 | 0.00 | 1.6 |
+| C8 abs+torso+base frozen+approach | 0/5 | 0/5 | 27.6 / 25.3 | 0.04 | 11.8 |
+- Delta wiring fixes the jitter (14.6 -> ~1.5 mm/step, Comet-like) but the arms then barely move toward anything.
+- Approach works (ends 0.85 m, <3 deg). Comet presses the button from 0.67-0.90 m base-to-radio (radio pos
+  recovered from the approach end pose; Comet A prompt-sweep P0 traces), so the standoff is right. After handover
+  base pi0.5 drives 1-3.6 m away (C3/C4); freezing the base (C7/C8) keeps hands >= 25 cm away: no reaching.
+- Best-of-8: delta candidates are nearly identical (critic spread median 6 cm, best predicted 1.29 m median);
+  absolute candidates differ more (spread 35 cm, best predicted 0.93 m, min 3 cm) -> C6 is the closest any base
+  run got (8 cm), but never contact; radio pushed 0.5-1.8 m by the body.
+=> Inference-time steering can't make base pi0.5 do the task: selection/guidance need a policy that sometimes
+   proposes good actions. Next: LoRA fine-tune of pi05_base on the 200 radio demos (openpi-comet already has a full
+   fine-tune config `pi05_b1k-base`, 30k steps x batch 256 — too big for one 3090; LoRA needs > 22.5 GB).
