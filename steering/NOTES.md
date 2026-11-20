@@ -557,3 +557,8 @@ Summary: `python steering/steer_report.py` (paired flips vs baseline, exact sign
   => V1's harm comes from repainting the radio (incl. the wrist close-ups), not from image edits in general.
 - Queued (user suggestion): V3 = thin red outline (6 px at 720 -> ~2 px at 224) on the HEAD camera only; V4 = tint on
   the head camera only (`--overlay outline|tint --overlay-cams head`).
+
+## New direction (2026-11-20): fine-tune pi0.5, preserve steerability; WAM vs VLA
+See steering/RESEARCH.md (plan, taxonomy, hypotheses) and steering/LITERATURE.md (survey, in progress).
+Queue after V3 deferred to /home/behavior/ext/runs/steer/queue_deferred.json (V4, N1, S2) to free the GPU for
+fine-tuning. Radio videos (rgb + seg_instance_id, 1200 files) downloading via unit `dl-radio`.
