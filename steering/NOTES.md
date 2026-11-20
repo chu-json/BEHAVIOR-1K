@@ -553,3 +553,7 @@ Summary: `python steering/steer_report.py` (paired flips vs baseline, exact sign
    hurt. Next idea: a learned/heuristic "needs help?" detector that decides when to intervene (selective shared
    autonomy), evaluated per setup.
 - Report: https://claude.ai/artifact/TCmuKtkKRpUiiba4epM2T1 (private). Queue continues: V2 dim, N1, S2.
+- V2 dim outside the box (all cams): 10/20 = B0 (4/4 flips). Neutral; at the halfway point it was 3/10 (noise).
+  => V1's harm comes from repainting the radio (incl. the wrist close-ups), not from image edits in general.
+- Queued (user suggestion): V3 = thin red outline (6 px at 720 -> ~2 px at 224) on the HEAD camera only; V4 = tint on
+  the head camera only (`--overlay outline|tint --overlay-cams head`).
