@@ -107,7 +107,10 @@ def parse_args():
         help="Send the radio button position (robot frame) to the "
         "policy server each step, for its best-of-N critic (privileged information).",
     )
-    ap.add_argument("--overlay", choices=["tint", "dim"], default=None, help="Segmentation overlay on the RGB inputs.")
+    ap.add_argument(
+        "--overlay", choices=["tint", "dim", "outline"], default=None, help="Radio-box overlay on the RGB inputs."
+    )
+    ap.add_argument("--overlay-cams", choices=["all", "head"], default="all", help="Which cameras get the overlay.")
     ap.add_argument(
         "--depth-target", action="store_true", help="Send a depth+segmentation radio estimate as steering_target."
     )
@@ -205,6 +208,7 @@ def main():
             fields = fields + ["overlay", "depth_est_n", "depth_est_err_med_m", "depth_est_err_last_m"]
             fields = fields + ["head_box_frac_med"]
             evaluator.env.overlay = args.overlay
+            evaluator.env.overlay_cams = args.overlay_cams
             evaluator.env.depth_target = args.depth_target
         writer = csv.DictWriter(f, fieldnames=fields)
         if new_csv:
@@ -316,7 +320,7 @@ def main():
             if assist is not None:
                 row.update(assist.summary())
             if vision:
-                row.update(overlay=args.overlay or "", **evaluator.env.summary())
+                row.update(overlay=f"{args.overlay or ''}:{args.overlay_cams}", **evaluator.env.summary())
             if tracer is not None:
                 row["trace_path"], summary = tracer.finish(stem)
                 row.update(summary)

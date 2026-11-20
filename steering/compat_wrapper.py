@@ -95,6 +95,8 @@ class SteerVisionWrapper(CompatFullResWrapper):
     overlay (run_rollouts.py --overlay):
       "tint": blend the radio's box toward red in all 3 cameras (visual prompting: point the policy at the target)
       "dim":  darken everything outside the radio's box (clutter removal)
+      "outline": thin red frame around the box, object pixels untouched
+    overlay_cams (--overlay-cams): "all" cameras or only the "head" camera
     depth_target (--depth-target): radio position (robot base frame) from the head camera's depth inside the box
       (nearest-surface pixels) -> `steering_target` for the best-of-N critic, instead of the true button position.
     """
@@ -113,6 +115,7 @@ class SteerVisionWrapper(CompatFullResWrapper):
     def __init__(self, env):
         super().__init__(env=env)
         self.overlay = None
+        self.overlay_cams = "all"  # "all" or "head"
         self.depth_target = False
         self.reset_stats()
 
@@ -166,7 +169,9 @@ class SteerVisionWrapper(CompatFullResWrapper):
             if "zed_link" in name:
                 head = (name, box, depth)
                 self.box_frac.append(0.0 if box is None else (box[2] - box[0]) * (box[3] - box[1]) / (h * w))
-            if self.overlay is None or box is None and self.overlay == "tint":
+            if self.overlay is None or box is None and self.overlay in ("tint", "outline"):
+                continue
+            if self.overlay_cams == "head" and "zed_link" not in name:
                 continue
             img = rgb[..., :3].float()
             mask = th.zeros((h, w), dtype=th.bool, device=img.device)
@@ -174,6 +179,12 @@ class SteerVisionWrapper(CompatFullResWrapper):
                 mask[box[1] : box[3], box[0] : box[2]] = True
             if self.overlay == "tint":
                 img = th.where(mask[..., None], 0.5 * img + 0.5 * th.tensor(self.TINT, device=img.device), img)
+            elif self.overlay == "outline":  # thin red frame around the box; the object's own pixels stay untouched
+                k = max(2, w // 120)  # ~2 px after the policy's resize to 224
+                inner = th.zeros_like(mask)
+                u0, v0, u1, v1 = box
+                inner[min(v0 + k, v1) : max(v1 - k, v0), min(u0 + k, u1) : max(u1 - k, u0)] = True
+                img = th.where((mask & ~inner)[..., None], th.tensor(self.TINT, device=img.device), img)
             else:
                 img = th.where(mask[..., None], img, 0.35 * img)
             rgb = rgb.clone()
