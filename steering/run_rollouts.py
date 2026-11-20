@@ -149,7 +149,7 @@ def main():
     os.makedirs(json_dir, exist_ok=True)
     os.makedirs(video_dir, exist_ok=True)
     csv_path = os.path.join(out_dir, "rollouts.csv")
-    new_csv = not os.path.exists(csv_path)
+    new_csv = not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0  # a killed run can leave it empty
 
     seed_everything(seeds[0])
     cfg = OmegaConf.create(

@@ -424,3 +424,69 @@ radio, then hand over). Setups 242 203 109 181 187, seed 0, 1500 steps, whole ho
 => Inference-time steering can't make base pi0.5 do the task: selection/guidance need a policy that sometimes
    proposes good actions. Next: LoRA fine-tune of pi05_base on the 200 radio demos (openpi-comet already has a full
    fine-tune config `pi05_b1k-base`, 30k steps x batch 256 — too big for one 3090; LoRA needs > 22.5 GB).
+
+## RLC setup (2026-11-19)
+RLC = 1st place 2025 (IliaLarchenko/behavior-1k-solution @ca556f7, openpi fork wensi-ai/openpi `behavior` @01177e0;
+paper arXiv 2512.06951). pi0.5 variant with 50 learned task embeddings (no text), stage predictor ("system 2"),
+correlated flow noise, delta joint actions with per-timestep norm. All code outside the repo; no edits to RLC/openpi.
+```bash
+cd /home/behavior/ext/rlc && GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/IliaLarchenko/behavior-1k-solution solution
+cd solution && GIT_LFS_SKIP_SMUDGE=1 git submodule update --init openpi      # BEHAVIOR-1K submodule NOT needed
+GIT_LFS_SKIP_SMUDGE=1 UV_PYTHON=3.11 uv sync                                # py3.11, jax 0.5.3, torch 2.7.1
+# RLC ships no uv.lock and the fresh resolve breaks openpi (no chex, pyarrow needs numpy 2): pin to openpi's lock
+uv export --project openpi --frozen --no-hashes --no-emit-project --no-emit-workspace --no-dev | grep -v '^av==' > /tmp/req.txt
+GIT_LFS_SKIP_SMUDGE=1 uv pip install --python .venv/bin/python -r /tmp/req.txt pytest   # pytest: imported by openpi
+# checkpoint for radio only (task 0 -> checkpoint_2 per task_checkpoint_mapping.json): 12.65 GB (fp32 orbax)
+uvx --from huggingface_hub python -c "from huggingface_hub import snapshot_download as s; \
+  s('IliaLarchenko/behavior_submission', allow_patterns=['checkpoint_2/*'], local_dir='/home/behavior/ext/rlc/ckpt')"
+```
+Use `.venv/bin/python` directly, NOT `uv run` (uv run would re-sync and undo the pins). Venv 7.6 GB, ckpt 12 GB at
+/home/behavior/ext/rlc/ckpt/checkpoint_2 (norm stats + action correlation matrix in
+assets/IliaLarchenko/behavior_224_rgb/norm_stats.json).
+
+Server (`steering/rlc_server.py`, replaces their scripts/serve_b1k.py; same protocol/client as comet_server.py):
+```bash
+cd /home/behavior/ext/rlc/solution
+XLA_PYTHON_CLIENT_PREALLOCATE=false XLA_PYTHON_CLIENT_MEM_FRACTION=0.32 .venv/bin/python \
+  /home/behavior/BEHAVIOR-1K/steering/rlc_server.py --ckpt /home/behavior/ext/rlc/ckpt/checkpoint_2 --port 8000
+# client: unchanged, e.g. python steering/run_rollouts.py --resolution full ... (+ --inject-target for --best-of-n)
+```
+- Defaults = serve_b1k.py defaults (their challenge setup): chunk 30, execute 26 cubic-interpolated into 20 steps
+  (base velocities x1.3; compression skipped when a gripper's range within the chunk > 0.2), last 4 kept for soft
+  inpainting of the next chunk (inpainted during the first 70% of denoising, correlation-aware guidance after),
+  20 flow steps, stage voting (history 3, 2 votes to advance), eval tricks on. Inference every 20 sim steps.
+- Obs used: 3 RGB cameras resize_with_pad to 224 (trained on 224 versions of the 720/480 demo videos, so
+  `--resolution full` matches training best; 224 is faster), proprio -> 23-d state: base_qvel(3, world frame as
+  2025 -> CompatWrapper fix applies), trunk(4), left arm(7), left gripper width sum normalized 2*w/0.1-1, right arm(7),
+  right gripper. Same fields as Comet, so the fork 61-d indices shim works (comet_server.install_omnigibson_shim).
+- task_id: RLC uses the 2025 task index from obs["task_id"]; radio = 0 in both the 2025 list and the fork's
+  B100_task_misc.csv. The server forces --task-id 0 anyway.
+- Action out: absolute 23-d R1Pro (delta mask: torso joints 1-3 and both arms are deltas internally, converted back to
+  absolute; base vel, torso joint 4, grippers absolute). Gripper commands can overshoot [-1, 1] (e.g. 1.19);
+  the controller clips (command_input_limits default).
+- Correction rules (b1k/shared/correction_rules.py, eval tricks): (1) radio-specific
+  `task0_stage4_reset_to_stage2`: when the stage tracker reaches the last stage (4 of 0-4) it is forced back to
+  stage 2; and from stage >= 2, if a gripper reads fully closed (normalized width < -0.98) while the other one is
+  fully open or closed (not mid-way), the whole chunk is replaced by "hold current state, open that gripper" (1.0).
+  The authors say it is legacy and probably unimportant. (2) general: gripper closed when the task table says it
+  should be open -> same hold-and-open chunk; for radio, closing is only allowed from stage 2.
+- Steering knobs: per-episode RNG seed (from `steering_seed`), `--best-of-n N` (N chunks scored by the URDF-FK
+  hand-to-button critic, like comet_server), `--num-steps`, `--execute-in-n-steps` / `--actions-to-execute`
+  (compression), `--no-eval-tricks`, stage tracker (`--history-len`, `--votes-to-promote`). The model's
+  `noise=` argument is ignored on the inpainting path (it draws its own correlated noise from the RNG), so there is
+  no comet-style --noise-scale.
+- GPU memory: bf16 params are 6.3 GB (3.15B params). Not measured on GPU (busy). Expect about 7-8 GB, so the 0.32
+  fraction (7.9 GB on 24 GB) is tight; if it OOMs at the first inference, use 0.36-0.40.
+- CPU smoke test (`steering/rlc_smoke_test.py`, real obs from Comet --dump-obs, 45 steps = 3 inferences incl.
+  inpainting): OK direct and over websocket (port 8010), bit-identical with the same seed; actions (1, 23),
+  first action = current joints within 0.003 rad, later chunks within 0.08 rad; 19 s per inference on CPU;
+  host RAM peak 9.0 GB. Seed sweep 0-5: chunk torso deviation <= 0.06 rad.
+What broke:
+- Host OOM on CPU (31 GB box, about 13 GB free): (a) openpi restore_params has orbax read all fp32 arrays before
+  the bf16 cast (> 13 GB) -> rlc_server.py replaces it with a chunked tensorstore reader (peak ~7 GB, same
+  params); (b) XLA:CPU has no bf16 dot, so it upcasts and loop-invariant code motion hoists fp32 copies of
+  whole stacked weights out of the layer scan -> for CPU runs set
+  `XLA_FLAGS=--xla_disable_hlo_passes=while-loop-invariant-code-motion` (temp 1239 -> 31 MB in a toy test).
+  Run CPU jobs as `systemd-run --user -p MemoryMax=12G -p MemorySwapMax=0 -p OOMScoreAdjust=1000` so only they die.
+- Best-of-N bug (fixed before use): openpi DeltaActions edits `initial_actions` in place, so N infer calls on the
+  same array moved candidate k's inpainting targets by -k*state (torso jumps of 1-3 rad). BestOfN now copies.
