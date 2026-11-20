@@ -512,3 +512,26 @@ inference), `--no-inpaint` (A/B knob).
   fp32-upcast CPU numerics differ), or the base didn't execute it. Next: 200-step GPU run with --log-chunks, then
   compare logged base commands with the trace's base_yaw.
 - Inpainting is not the cause (static-frame A/B: same small, intermittent turn with or without it).
+
+## Overnight steering campaign on Comet + RLC (2026-11-19/20) — steering/steer_campaign.py
+Setup: Comet radio SFT, 20 pairs = 10 val setups x seeds 0-19, whole house, default mass, full-res, 3000 steps.
+Baseline on the same pairs: massD + massF = 14/20. Runs as systemd user unit `steer-night` (survives editor restarts;
+setsid did NOT survive a Claude Code restart). Queue = /home/behavior/ext/runs/steer/queue.json (re-read per
+condition; entries ending `_once` are removed by `queue-once.service` when they start).
+Summary: `python steering/steer_report.py` (paired flips vs baseline, exact sign test).
+- Segmentation (seg_semantic) segfaults this Isaac build at sensor init (deterministic; depth_linear alone is fine).
+  Workaround: the radio's 3D AABB projected into each camera = a detector-like 2D box (SteerVisionWrapper).
+- S1 best-of-8, oracle FK critic: 10/20 (2 F->S, 6 S->F, p=0.29). Comet's 8 samples are ~identical (critic spread
+  median 0.8 cm), so selection has nothing to choose; S1 is effectively baseline with a different RNG stream ->
+  the 14 vs 10 gap is mostly run-to-run variance. Grasping unchanged (19/20 vs 20/20). => B0 fresh baseline moved up.
+- R1 recovery (stall 500 steps / radio pushed -> let go, back off, home, re-approach; max 2): 13/20 (3 F->S, 4 S->F);
+  fired in 9 rollouts, 2 of those then succeeded. Triggers came at stalls 17-19 cm from the button.
+- V1 radio tinted red (box overlay) in all 3 cameras: 3/20 (0 F->S, 11 S->F, p=0.001). Overlaying the image breaks
+  Comet: visual prompting by editing the input is out-of-distribution for a fine-tuned VLA.
+- RLC (1st place 2025) baseline, setup 242 seed 0: robot freezes (base 3.6 cm in 3000 steps, stage 0 throughout).
+  CPU debugging (agent): obs/action format verified against 2025 demos (RLC reproduces demo actions incl. base turns).
+  GPU chunk log (rlc_server.py --log-chunks): the policy itself commands ~0 base motion (|wz| <= 0.001 except two
+  brief 0.17 pulses, which the base executes: yaw +0.017) -> policy-level stall on this start view, not a harness bug.
+  Next: RLC baseline on 10 pairs and RLC + scripted approach (shared autonomy) on the same 10.
+- Replaced S2 (best-of-8 with depth target) by S3 = noise x2 + best-of-8 (create diversity, then select), since
+  Comet's samples have no diversity to select from. S2 moved to the end.
