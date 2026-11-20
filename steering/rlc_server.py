@@ -125,8 +125,13 @@ class BestOfN:
 class BatchedRLCPolicy:
     """Adapts RLC's B1KPolicyWrapper (unbatched obs, (23,) action) to the fork's batched protocol, num_envs == 1."""
 
-    def __init__(self, rlc_policy, openpi_policy, task_id, best_of_n=None):
+    def __init__(self, rlc_policy, openpi_policy, task_id, best_of_n=None, no_inpaint=False, log_dir=None):
         self.rlc = rlc_policy
+        self.no_inpaint = no_inpaint
+        self.log_dir = log_dir  # save obs + chunk at every inference (debugging closed-loop behaviour)
+        self._episode = -1
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
         self.openpi_policy = openpi_policy
         self.task_id = task_id
         self.best_of_n = best_of_n
@@ -135,6 +140,7 @@ class BatchedRLCPolicy:
     def reset(self):
         self.rlc.reset()
         self._need_seed = True
+        self._episode += 1
 
     def act(self, obs):
         unbatched = {}
@@ -155,7 +161,25 @@ class BatchedRLCPolicy:
             self.openpi_policy._rng = jax.random.key(s)
             logging.info(f"Episode start: policy RNG seeded with {s}")
         self._need_seed = False
+        n_pred = self.rlc.prediction_count
         action = self.rlc.act(unbatched)  # torch (23,)
+        if self.log_dir and self.rlc.prediction_count != n_pred:  # this step ran an inference
+            from b1k.policies.b1k_policy import extract_state_from_proprio
+            from openpi_client.image_tools import resize_with_pad
+
+            cams = [k for k in unbatched if k.endswith("::rgb")]
+            np.savez_compressed(
+                os.path.join(self.log_dir, f"ep{self._episode:03d}_step{self.rlc.step_count - 1:05d}.npz"),
+                proprio=np.asarray(unbatched["robot_r1::proprio"], dtype=np.float32),
+                state23=extract_state_from_proprio(np.asarray(unbatched["robot_r1::proprio"], dtype=np.float64)),
+                executed=np.asarray(self.rlc.last_actions, dtype=np.float32),  # after rules/compression
+                next_initial=np.zeros((0, 23)) if self.rlc.next_initial_actions is None else self.rlc.next_initial_actions,
+                stage=self.rlc.current_stage,
+                images=np.stack([resize_with_pad(np.asarray(unbatched[k])[..., :3], 224, 224) for k in sorted(cams)]),
+                cams=np.array(sorted(cams)),
+            )
+        if self.no_inpaint:
+            self.rlc.next_initial_actions = None  # each chunk sampled freely (A/B knob; RLC default = inpaint 4)
         action = action.reshape(1, -1)
         assert tuple(action.shape) == (1, 23), f"unexpected action shape {tuple(action.shape)}"
         return action
@@ -193,7 +217,10 @@ def build_policy(args):
     )
     logging.info(f"RLC wrapper config: {wrapper_config}")
     rlc = B1KPolicyWrapper(inner, task_id=args.task_id, config=wrapper_config)
-    return BatchedRLCPolicy(rlc, openpi_policy, args.task_id, best_of_n=bon), openpi_policy
+    return (
+        BatchedRLCPolicy(rlc, openpi_policy, args.task_id, best_of_n=bon, no_inpaint=args.no_inpaint, log_dir=args.log_chunks),
+        openpi_policy,
+    )
 
 
 def make_parser():
@@ -210,6 +237,8 @@ def make_parser():
     ap.add_argument("--votes-to-promote", type=int, default=2)
     ap.add_argument("--num-steps", type=int, default=20, help="Flow-matching denoising steps.")
     ap.add_argument("--no-eval-tricks", action="store_true", help="Disable correction rules + gripper check.")
+    ap.add_argument("--log-chunks", default=None, help="Dir: save obs (224 imgs, proprio) + executed chunk per inference.")
+    ap.add_argument("--no-inpaint", action="store_true", help="Don't condition each chunk on the previous chunk's tail.")
     ap.add_argument("--best-of-n", type=int, default=1, help="Best-of-N chunk selection with the FK critic.")
     ap.add_argument(
         "--orbax-restore", action="store_true", help="Use openpi's own restore_params (needs ~2x more host RAM)."

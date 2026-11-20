@@ -490,3 +490,25 @@ What broke:
   Run CPU jobs as `systemd-run --user -p MemoryMax=12G -p MemorySwapMax=0 -p OOMScoreAdjust=1000` so only they die.
 - Best-of-N bug (fixed before use): openpi DeltaActions edits `initial_actions` in place, so N infer calls on the
   same array moved candidate k's inpainting targets by -k*state (torso jumps of 1-3 rad). BestOfN now copies.
+
+### RLC freeze debugging (2026-11-20), CPU only
+GPU run RLC_B0_baseline (242/s0, 3000 steps): both hands to x 0.31 m in steps 21-60, then frozen; yaw exactly 0.575
+for 2000 steps, stage 0 throughout. Tools: `steering/rlc_demo_check.py` (2025 demo ep 40, local parquet + RGB
+videos at /home/behavior/ext/rlc/demo{full,224}), `rlc_server.py --log-chunks DIR` (obs + executed chunk per
+inference), `--no-inpaint` (A/B knob).
+- Format ruled out: on demo observations sent in our client format (720/480 frames -> RLC resize_with_pad, 256-d
+  state fields at the fork's 61-d indices), single inferences match the demo (t=20: wz 0.25 vs demo 0.29; t=60
+  0.29 vs 0.30; t=900 arm motion 0.39 vs 0.35, predicted stage = true stage). Full-path replay (inpainting,
+  compression, voting) of frames 0-300 turns at 0.37 = 1.3 x demo 0.3 rad/s and then drives forward like the demo.
+  224-dataset images vs pad-resized full-res: same behaviour. Our sim's first frame matches Comet's on 242
+  (view, colours), so RGB order/camera slots are right.
+- Not base_qvel: zeroing it at demo t=20 still gives the turn.
+- What drives it is the images: same state, sim frames from the RLC video -> wz <= 0.06 decaying to 0; demo frames
+  -> 0.2-0.26.
+- Closed-loop reconstruction on CPU (real rollout frames in order, state = last command): RLC itself commands
+  "both arms forward": seed 1 ends with hands at L (0.317, 0.471) R (0.304, 0.465) at t=60, vs the real
+  (0.312, 0.469)/(0.300, 0.464). But all 5 CPU seeds also command wz 0.3-0.4 at steps 20-40, while the real yaw
+  never changed. Open: either the GPU run sampled no turn (jax.random is platform-independent, but bf16 GPU vs
+  fp32-upcast CPU numerics differ), or the base didn't execute it. Next: 200-step GPU run with --log-chunks, then
+  compare logged base commands with the trace's base_yaw.
+- Inpainting is not the cause (static-frame A/B: same small, intermittent turn with or without it).
