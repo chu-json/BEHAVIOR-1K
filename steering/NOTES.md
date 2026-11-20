@@ -543,3 +543,13 @@ Summary: `python steering/steer_report.py` (paired flips vs baseline, exact sign
   freeze did not recur (it succeeded), so the freeze was a stochastic stall.
 - RLC + scripted approach (--approach-assist 0.8): 6/10, median success step 1644; solved 197 (Comet ~never) and
   139, lost 242. n=10, not significant, but the only steering that has helped RLC.
+- S3 noise x2 + best-of-8 oracle: stopped at 0/7 (B0 same pairs 4/7). Plans now differ (critic spread 8.9 cm vs
+  0.8) but never grasp the radio: scaled initial noise is off-distribution for the flow and produces bad plans.
+- RLC on all 20 pairs: 8/20 (median success step 2146); RLC + approach 9/20 (step 1748), flips 5 F->S / 4 S->F.
+  Setup-dependent: 197 0/2 -> 2/2 (Comet and RLC never solve 197 alone), 139 0/2 -> 2/2, 242 1/2 -> 0/2.
+  => the approach fixes start-heading problems and hurts where the policy's own approach was fine.
+=> Summary of the night: help that changes WHERE the robot is (approach, stall-retry) is the only thing that
+   helped, and only on setups that need it. Changing inputs (tint) or sampling (best-of-N, noise) did nothing or
+   hurt. Next idea: a learned/heuristic "needs help?" detector that decides when to intervene (selective shared
+   autonomy), evaluated per setup.
+- Report: https://claude.ai/artifact/TCmuKtkKRpUiiba4epM2T1 (private). Queue continues: V2 dim, N1, S2.
