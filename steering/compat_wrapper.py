@@ -33,6 +33,8 @@ class CompatWrapper(DefaultWrapper):
         super().__init__(env=env)
         self.rollout_seed = 0
         self.inject_target = False  # set by run_rollouts.py --inject-target
+        self.perturber = None  # steering.perturb.ScenePerturber, set by run_rollouts.py --clutter/--occluder/...
+        self.perturb_log = {}
 
     def _fix_obs(self, obs, env_idx):
         robot = self.env.scenes[env_idx].robots[0]
@@ -71,6 +73,11 @@ class CompatWrapper(DefaultWrapper):
 
     def reset(self, **kwargs):
         obs_list, info = self.env.reset(**kwargs)
+        if self.perturber is not None and self.perturber.active:
+            env_indices = kwargs.get("env_indices")
+            for i in range(len(obs_list)) if env_indices is None else [int(j) for j in env_indices]:
+                self.perturb_log = self.perturber.apply(self.env, i, self.rollout_seed)
+            obs_list, info = self.env.get_obs(env_indices=env_indices)  # observations after the perturbation
         return self._fix_list(obs_list, kwargs.get("env_indices")), info
 
     def get_obs(self, env_indices=None):

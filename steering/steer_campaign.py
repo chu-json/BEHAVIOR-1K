@@ -45,9 +45,8 @@ CONDITIONS = [
     ("B0_baseline", [], []),
 ]
 SMOKE = [  # name, server flags, rollout flags, pairs, steps, extra env
-    ("box_tint_depth_best4", ["--best-of-n", "4"], ["--overlay", "tint", "--depth-target"], [(211, 2)], 400, {}),
-    ("box_dim", [], ["--overlay", "dim"], [(242, 0)], 60, {}),
-    ("recovery_forced2", [], ["--recovery"], [(211, 2)], 2200, {"STEER_RECOVERY_STALL": "150"}),
+    ("perturb_clutter6_occluder", [], ["--clutter", "6", "--occluder"], [(242, 0)], 300, {}),
+    ("perturb_radio_yaw90", [], ["--radio-yaw-deg", "90"], [(242, 0)], 300, {}),
 ]
 
 

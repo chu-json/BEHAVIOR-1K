@@ -83,13 +83,31 @@ swing is about +-4/20, NOTES 2026-11-20).
 Phase 0 — infrastructure (now)
 - [ ] Fine-tuning pipeline for pi0.5 on the 200 radio demos (steering/ft, LoRA on one 3090). In progress.
 - [ ] Download the radio videos incl. seg (in progress; unit `dl-radio`).
-- [ ] Perturbation tooling in run_rollouts.py: clutter objects, occluder, radio pose, button marker offset/size.
+- [x] Perturbation tooling (steering/perturb.py; run_rollouts --clutter N / --occluder / --radio-yaw-deg): smoke test
+  queued after V3. Button offset/size deferred: the visible button is part of the radio mesh (needs asset work).
 - [ ] Steerability suite runner: one command runs the taxonomy table for a given model/server.
-- [ ] Literature survey (LITERATURE.md) and CyberWAM availability (in progress).
+- [x] Literature survey (LITERATURE.md); CyberWAM weights not public. Env + base assets being prepared.
 Phase 1 — baselines on the suite: Comet A, Comet pt50, base pi0.5 (L1 only), RLC, M1 when it arrives.
 Phase 2 — our fine-tunes M2/M3 on the suite; plot success vs steerability (the trade-off curve is the result).
 Phase 3 — WAM on the same suite once weights are available.
 Decision point after Phase 1: pick the 2-3 steerability types where models differ most and focus there.
+
+## What the literature says (details: LITERATURE.md, 2026-11-20 survey)
+- Closest prior work: "Flatness Preserves Instruction Following in VLAs" (arXiv 2606.23641) names "instruction
+  blindness" after fine-tuning and fixes it with sharpness-aware minimisation; Knowledge Insulation (2505.23705),
+  VLM2VLA (2509.22195) preserve VLM knowledge. These are our M3 recipes.
+- WAM vs VLA robustness: "Do World Action Models Generalize Better than VLAs?" (2603.22078) - WAMs stronger on
+  noise/lighting/layout, weaker on camera/initial-state shifts, >= 4.8x slower; tabletop only (LIBERO-Plus,
+  RoboTwin2.0-Plus).
+- Language grounding metrics: LIBERO-PRO garbage-instruction check, LIBERO-CF / LangGap counterfactual grounding
+  (pi0.5 grounds only ~31%); "Learning What to Say to Your VLA" (2606.12299): some tasks are not language-steerable.
+- Gaps we can fill: (1) steerability before vs after fine-tuning, across recipes, on one long-horizon mobile task;
+  (2) changed object geometry and partial occlusion of the target (essentially unstudied for VLAs/WAMs);
+  (3) WAM vs VLA on BEHAVIOR with matched data/embodiment/eval; (4) can a WAM's predicted future flag a
+  perturbation (steering / failure signal); can fixed-prompt WAMs be steered by language at all.
+- CyberWAM: code public (github.com/xiaomi-research/cyberwam, Apache-2.0); weights "coming soon" (not on HF) ->
+  need them from the mentor. Wan2.2-TI2V-5B video backbone + action DiT, trained on the 20k BEHAVIOR-1K 2026 demos,
+  RGB+depth input, prompt = fixed template per task (T5), 32x23 chunks; radio 7/10 in their eval; v3.9.3 evaluator.
 
 ## Open questions for the mentors
 - Mentor's checkpoint: which data (radio only or all 50 tasks), action space (absolute / delta), config?

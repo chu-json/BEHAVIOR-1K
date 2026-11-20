@@ -115,6 +115,10 @@ def parse_args():
         "--depth-target", action="store_true", help="Send a depth+segmentation radio estimate as steering_target."
     )
     ap.add_argument("--recovery", action="store_true", help="Failure monitor + back off / re-approach / retry.")
+    ap.add_argument("--clutter", type=int, default=0, help="Distractor objects around the radio (steering/perturb.py).")
+    ap.add_argument("--occluder", action="store_true", help="Panel partially hiding the radio from the start view.")
+    ap.add_argument("--radio-yaw-deg", type=float, default=0.0, help="Rotate the radio at episode start.")
+    ap.add_argument("--perturb-seed", type=int, default=0, help="Layout seed (combined with the rollout seed).")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--output-dir", required=True)
@@ -191,6 +195,21 @@ def main():
 
         evaluator_mod.BatchedEvaluator._apply_robot_eval_settings = apply_keep_default_mass
 
+    perturber = None
+    if args.clutter or args.occluder or args.radio_yaw_deg:
+        from steering.perturb import ScenePerturber, extra_object_configs
+
+        perturber = ScenePerturber(args.clutter, args.occluder, args.radio_yaw_deg, args.perturb_seed)
+        extra = extra_object_configs(args.clutter, args.occluder)
+        orig_env_init = og.Environment.__init__
+
+        def env_init_with_extras(self, configs, *a, **kw):
+            configs = dict(configs)
+            configs["objects"] = list(configs.get("objects") or []) + extra
+            return orig_env_init(self, configs, *a, **kw)
+
+        og.Environment.__init__ = env_init_with_extras
+
     with BatchedEvaluator(cfg) as evaluator, open(csv_path, "a", newline="") as f:
         fields = CSV_FIELDS
         if args.trace:
@@ -210,11 +229,14 @@ def main():
             evaluator.env.overlay = args.overlay
             evaluator.env.overlay_cams = args.overlay_cams
             evaluator.env.depth_target = args.depth_target
+        if perturber is not None:
+            fields = fields + ["perturb"]
         writer = csv.DictWriter(f, fieldnames=fields)
         if new_csv:
             writer.writeheader()
         evaluator.env.world_frame_base_qvel = not args.robot_frame_base_qvel
         evaluator.env.inject_target = args.inject_target
+        evaluator.env.perturber = perturber
 
         # Time spent waiting on the policy server (vs. simulating), per rollout.
         policy_time = [0.0]
@@ -319,6 +341,8 @@ def main():
             }
             if assist is not None:
                 row.update(assist.summary())
+            if perturber is not None:
+                row["perturb"] = ";".join(f"{k}={v}" for k, v in evaluator.env.perturb_log.items())
             if vision:
                 row.update(overlay=f"{args.overlay or ''}:{args.overlay_cams}", **evaluator.env.summary())
             if tracer is not None:
