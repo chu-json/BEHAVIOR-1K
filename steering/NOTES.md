@@ -535,3 +535,11 @@ Summary: `python steering/steer_report.py` (paired flips vs baseline, exact sign
   Next: RLC baseline on 10 pairs and RLC + scripted approach (shared autonomy) on the same 10.
 - Replaced S2 (best-of-8 with depth target) by S3 = noise x2 + best-of-8 (create diversity, then select), since
   Comet's samples have no diversity to select from. S2 moved to the end.
+- B0 fresh Comet baseline (same config + seeds as massD/F): 10/20 (vs 14/20 then). Same seeds don't reproduce;
+  run-to-run swing is ~+-4/20, so S1 (10/20, = B0) is no effect; R1 13/20 is +3 vs B0 (5 F->S / 2 S->F, p=0.45);
+  V1 3/20 vs B0: 1/8, p=0.04 (harmful). steer_report.py now shows both comparisons.
+- RLC, 10 pairs (val10 x seeds 0-9): 5/10 (= Comet B0 on the same pairs, 5/10); slower (median success step 2178
+  vs Comet 1375; two successes at 2821/2967, so the 2025 4299-step budget would likely raise it). The 242 s0
+  freeze did not recur (it succeeded), so the freeze was a stochastic stall.
+- RLC + scripted approach (--approach-assist 0.8): 6/10, median success step 1644; solved 197 (Comet ~never) and
+  139, lost 242. n=10, not significant, but the only steering that has helped RLC.
