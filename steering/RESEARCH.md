@@ -90,6 +90,14 @@ Phase 0 — infrastructure (now)
 Phase 1 — baselines on the suite: Comet A, Comet pt50, base pi0.5 (L1 only), RLC, M1 when it arrives.
 Phase 2 — our fine-tunes M2/M3 on the suite; plot success vs steerability (the trade-off curve is the result).
 Phase 3 — WAM on the same suite once weights are available.
+  WAM readiness (CyberWAM; details NOTES "CyberWAM setup (2026-11-20)"):
+  - [x] venv /home/behavior/ext/cyberwam/.venv (torch 2.7.1+cu128), their 511 tests pass on CPU
+  - [x] inference base assets in /home/behavior/ext/cyberwam/checkpoints (33 GB: Wan2.2 DiT + VAE, DINOv3, T5, tokenizer)
+  - [x] radio prompt embedding + 4 steering variants cached; steering/wam_text_embed.py embeds any new prompt (CPU)
+  - [x] client: run_rollouts.py --policy-profile cyberwam (RGB-D full res, robot-frame base_qvel, K=32 replay)
+  - [x] server: steering/wam_server.py (preflight, stub, episode seed, hot-swappable prompt); stub <-> client tested
+  - [ ] model_a from the mentor -> `wam_server.py --preflight-only` -> GPU memory/latency check -> sim stub smoke
+  - [ ] baseline radio val10 x 2 seeds, then the steerability suite (prompt variants first)
 Decision point after Phase 1: pick the 2-3 steerability types where models differ most and focus there.
 
 ## What the literature says (details: LITERATURE.md, 2026-11-20 survey)

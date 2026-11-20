@@ -562,3 +562,112 @@ Summary: `python steering/steer_report.py` (paired flips vs baseline, exact sign
 See steering/RESEARCH.md (plan, taxonomy, hypotheses) and steering/LITERATURE.md (survey, in progress).
 Queue after V3 deferred to /home/behavior/ext/runs/steer/queue_deferred.json (V4, N1, S2) to free the GPU for
 fine-tuning. Radio videos (rgb + seg_instance_id, 1200 files) downloading via unit `dl-radio`.
+
+## CyberWAM setup (2026-11-20)
+Goal: be able to evaluate CyberWAM (Xiaomi, BEHAVIOR Challenge 2026 WAM; code /home/behavior/ext/cyberwam @3876f7d,
+github.com/xiaomi-research/cyberwam) in our harness as soon as the mentor sends `model_a/` (checkpoint.pt,
+checkpoint_contract.json, norm_stats.json, model_config.json). Everything up to loading the weights is done and
+tested without a GPU.
+
+**Env**: `/home/behavior/ext/cyberwam/.venv` (uv, Python 3.10.x, torch 2.7.1+cu128 / torchvision 0.22.1, the
+pyproject pins minus deepspeed (training only) + websockets 15.0.1 / msgpack 1.1.0 / pytest; list in
+`/home/behavior/ext/cyberwam/steering_venv_requirements.txt`; fastwam installed `-e --no-deps`). Their test suite:
+511 passed on CPU (`CUDA_VISIBLE_DEVICES= PYTHONPATH=.:src .venv/bin/python -m pytest tests`). Not Docker.
+
+**Base assets** (`/home/behavior/ext/cyberwam/checkpoints` = the Docker image's runtime-assets root, 33.1 GB; script
+`steering/cyberwam_assets.py`, unit `dl-cyberwam`, all ungated; only what INFERENCE loads, per
+fastwam/models/wan22/helpers/{io,loader}.py, the flex model config and model_factory.py):
+| file (under checkpoints/models/) | size | used by |
+|---|---|---|
+| Wan-AI/Wan2.2-TI2V-5B/diffusion_pytorch_model-0000{1..3}-of-00003.safetensors (+index, config), HF @921dbaf | 20.0 GB (fp32) | video expert init; redundant (checkpoint.pt strict-loads `mot`), skip with `--skip-pretrained-dit` |
+| DiffSynth-Studio/Wan-Series-Converted-Safetensors/Wan2.2_VAE.safetensors, ModelScope (sha256 ok) | 1.41 GB | VAE (redirect_common_files=true default) |
+| dinov3/vit_base_patch16_dinov3.lvd1689m/model.safetensors, HF timm @c6a5fb7 | 0.34 GB | frozen DINOv3 target encoder (DINOv3 License, not Apache) |
+| Wan-AI/Wan2.1-T2V-1.3B/google/umt5-xxl/* (tokenizer), HF @37ec512 | 0.02 GB | text embeddings only |
+| Wan-AI/Wan2.2-TI2V-5B/models_t5_umt5-xxl-enc-bf16.pth, HF | 11.4 GB | text embeddings only (never loaded by the server) |
+Not downloaded: ActionDiT init (training only; `wam_server.py` sets `model.action_dit_pretrained_path=null`, the
+action expert is then overwritten by checkpoint.pt). Verified: VAE and DiT key hashes match fastwam's registry,
+DINO loads into timm, Hydra config composes with our overrides.
+
+**Text embeddings** (`checkpoints/text_embeds/<sha256(prompt)>.t5_len128.wan22ti2v5b.pt`): the server looks up
+`format_b1k_prompt(task_data id)` = "A video recorded from a robot's point of view executing the following
+instruction: turning on radio" (task NAME with spaces; the 2026 demos' meta/episodes `tasks` field is the name, not
+the long instruction in tasks.jsonl, so training used the same prompt). Their scripts/precompute_text_embeds.py
+would build T5 in fp32 (~23 GB RAM) and needs a local dataset tasks.jsonl, so `steering/wam_text_embed.py` does the
+same computation (their tokenizer + WanTextEncoder, bf16, CPU) with a meta-device model + mmap'ed weights (~50 s
+per prompt, 4 threads). Cached so far: turning_on_radio (official), "Turn on the radio receiver that's on the table
+in the living room.", "turn on the radio", "press the power button on the radio", "turning off radio" (negative
+control). Arbitrary prompt: `CUDA_VISIBLE_DEVICES= /home/behavior/ext/cyberwam/.venv/bin/python
+steering/wam_text_embed.py --text "<instruction>"` (or --file, --raw for an exact prompt). Caveat for language
+steering: the model only ever saw 100 fixed task-name prompts, and the per-task prompt carries little information
+(mean-token cosine to "turning off radio" is 0.92).
+
+**What CyberWAM needs from the client (verified against challenge_docker/{observation,session,server}.py)**:
+- obs keys `*::proprio` (61-d fork layout accepted, collapsed to 23-d with the fork's indices), `task_id` [B,1]
+  (fork TASK_NAMES_TO_INDICES == their task_data.json order for all 100 tasks), per camera `*zed*::rgb`,
+  `*left_realsense*::rgb`, `*right_realsense*::rgb` and the same with `::depth_linear` (Flex requires depth -> point
+  maps; inf/nan clamped server-side). Any extra key (steering_seed, cam_rel_poses) just needs a leading batch dim.
+- resolution head 720x720, wrists 480x480 (server resizes to a 384x256 mosaic).
+- base_qvel in the ROBOT frame = fork native. `steering/check_qvel_frame.py`: 2026 demos' base_qvel matches the
+  robot-frame base action command (rel. err 0.07-0.18, k=0.74 = the 0.75 m/s output limit) and not the rotated one
+  (0.17-0.79); 2025 demos are the opposite (world). So NO compat fix #3 for CyberWAM.
+- `__action_chunk_size__` = 32 (or 0): the server returns `action_chunk` [B,32,23] and errors if asked for another
+  chunk while its queue is not drained, i.e. the client must replay the whole chunk (fork WebsocketClientPolicy
+  action_chunk_size=32 does exactly that). speed_2x: each 15 Hz prediction = one 30 Hz step (base velocities
+  doubled server-side, seen in the stub test).
+- Same robot config as fork eval/r1pro.yaml (controllers, limits, reset pose identical; only proprio_obs differs).
+- Sampling seed: fixed 20260719 + chunk index per episode (deterministic given obs); `--episode-seed` makes it
+  20260719 + 1000003*steering_seed + chunk index.
+
+**What changed in steering/** (default behavior unchanged):
+- `compat_wrapper.CyberWAMWrapper`: CompatFullResWrapper + depth_linear, world_frame_base_qvel False.
+- `run_rollouts.py --policy-profile cyberwam`: wrapper `full_rgbd` (= CyberWAMWrapper), robot-frame base_qvel,
+  WebsocketPolicy action_chunk_size=32. Rejects --overlay/--depth-target (SteerVisionWrapper strips depth).
+  Assist/recovery wrappers + chunk replay are untested (the client resumes a leftover chunk after a pause).
+- `wam_server.py`: Dockerfile env + runtime_launcher bundle validation in-process, then challenge_docker.server.main();
+  `--preflight-only`, `--stub`, `--episode-seed`, `--prompt-text/--prompt-file` (hot-swappable prompt, "RAW:" =
+  exact prompt), `--skip-pretrained-dit`, checkpoint.pt loaded with mmap by default. Tested: preflight on a fake
+  bundle (+ their preflight_models.py), stub server <-> fork WebsocketClientPolicy (K=32 replay boundaries at
+  32/64, reset, seed hook, full-res RGB-D shapes reach the policy), prompt-file hook (switch, RAW, missing cache).
+- `wam_text_embed.py`, `cyberwam_assets.py`, `check_qvel_frame.py`.
+
+**Run once model_a arrives** (put it at e.g. /home/behavior/ext/ckpt/cyberwam/model_a; verify their SHA256SUMS.txt;
+never edit norm_stats.json / contract files - hashes are checked):
+```bash
+V=/home/behavior/ext/cyberwam/.venv/bin/python; M=/home/behavior/ext/ckpt/cyberwam/model_a
+CUDA_VISIBLE_DEVICES= $V steering/wam_server.py --model-dir $M --preflight-only     # must print PREFLIGHT OK
+# server (port 8000 is used by comet_server; pick another); detached:
+systemd-run --user --unit=wam-server --setenv=PATH="$PATH" --setenv=HOME="$HOME" \
+  /usr/bin/bash -c "$V /home/behavior/BEHAVIOR-1K/steering/wam_server.py --model-dir $M --port 8010 \
+  --skip-pretrained-dit --episode-seed --telemetry /home/behavior/ext/logs/wam_telemetry.jsonl \
+  > /home/behavior/ext/logs/wam_server.log 2>&1"
+curl -s http://127.0.0.1:8010/healthz          # ready + metadata (contract/checkpoint sha256)
+# client (behavior env, repo root): 2025 radio val10 x 2 seeds, 2025 budget
+OMNIGIBSON_HEADLESS=1 OMNI_KIT_ACCEPT_EULA=YES python steering/run_rollouts.py --policy-profile cyberwam \
+  --port 8010 --instances 242 295 211 203 109 181 197 187 214 139 -n 20 --max-steps 4299 \
+  --output-dir /home/behavior/ext/runs/wam/base
+# wiring smoke test without weights (stub server, zero normalized actions; robot will not do the task):
+$V steering/wam_server.py --stub --port 8011   # then run_rollouts ... --policy-profile cyberwam --port 8011 -n 1 --max-steps 100
+```
+Official-evaluator equivalent (their README): `python -m omnigibson.eval.eval --env-wrapper
+omnigibson.eval.wrappers.RGBDFullResWrapper --replay-action-chunk-size 32 ...`; run_rollouts differs only by
+steering_seed (ignored unless --episode-seed), released stale grasps, and our instance/seed bookkeeping.
+
+**Resource estimate (not measured; GPU off-limits today)**: ~6B params (video expert 5B + action expert ~1B) +
+VAE 0.7B + DINO 0.09B in bf16 = ~13.5 GB weights; 20 denoising steps on a 9-frame 384x256 mosaic x 3 streams ->
+expect ~15-18 GB VRAM peak. Our sim at full-res uses ~11 GB, so server + sim on the one 3090 (24 GB) probably does
+NOT fit; options: server on another GPU/machine (`--host`), or free sim memory. CPU RAM at startup: the DiT is
+built in fp32 on CPU first (~20 GB, +~10 GB if loading the pretrained shards; hence --skip-pretrained-dit) and
+this box has 31 GB shared with other jobs -> start it when the fine-tuning job / sims are not running. Speed: their
+challenge machines did 20-step inference per 32-step chunk; on a 3090 probably several s per chunk (~40 chunks for a
+1300-step radio episode at 2x).
+
+**Open questions (mentor)**:
+1. Exactly which bundle: the released `model_a` (all 100 tasks, step 115,884) or another checkpoint; does it come
+   with SHA256SUMS.txt and model_config.json (allowed_task_ids must include 0, batch_size 1)?
+2. Is checkpoint.pt bf16 weights-only (size?) - drives RAM/VRAM; any optimizer state inside?
+3. Which GPU did they serve on and what VRAM/latency per chunk? Is a 24 GB card enough alongside Isaac Sim, or
+   should the server run on a separate machine?
+4. The README mentions per-task 1x overrides (tasks 55/77/95); radio uses the default speed_2x / horizon 32 - confirm
+   that is what their reported radio number used.
+5. Is there any prompt variation in training (they say fixed template per task)? If not, language steerability is
+   expected to be near zero - worth testing anyway with the cached variants.

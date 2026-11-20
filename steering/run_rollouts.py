@@ -9,6 +9,10 @@ Start the policy server first, then (behavior env, from the repo root):
 Instances are BEHAVIOR task-instance ids loaded with mode="train" (the 2025 validation ids for
 turning_on_radio live in the train range; their files are identical in the 2025 and 2026 instance sets).
 Rollout i uses instance instances[i % len(instances)] and seed seeds[i] (or base_seed + i).
+
+CyberWAM (2026 WAM; server: steering/wam_server.py): add --policy-profile cyberwam (RGB-D, robot-frame base_qvel,
+32-step chunk replay). The assist/recovery options pause the policy mid-chunk; with chunk replay the client resumes
+the leftover chunk, so treat those combinations as untested.
 """
 
 import argparse
@@ -28,6 +32,7 @@ WRAPPERS = {
     "full": "steering.compat_wrapper.CompatFullResWrapper",
     "224": "steering.compat_wrapper.CompatWrapper",
     "full_vision": "steering.compat_wrapper.SteerVisionWrapper",  # + seg/depth (auto with --overlay/--depth-target)
+    "full_rgbd": "steering.compat_wrapper.CyberWAMWrapper",  # RGB + depth, robot-frame base_qvel (--policy-profile cyberwam)
 }
 CSV_FIELDS = [
     "rollout",
@@ -61,6 +66,14 @@ def parse_args():
     ap.add_argument("--base-seed", type=int, default=0)
     ap.add_argument("--max-steps", type=int, default=4299, help="Episode timeout. 4299 = 2025 protocol for radio.")
     ap.add_argument("--resolution", choices=sorted(WRAPPERS), default="full", help="Camera render resolution.")
+    ap.add_argument(
+        "--policy-profile",
+        choices=("comet", "cyberwam"),
+        default="comet",
+        help="comet (default): 2025-trained policies, one request per step, the --resolution wrapper. "
+        "cyberwam: 2026 CyberWAM WAM server (steering/wam_server.py): RGB-D full-res obs, fork-native robot-frame "
+        "base_qvel, 32-step action-chunk replay (= official eval --replay-action-chunk-size 32).",
+    )
     ap.add_argument(
         "--robot-frame-base-qvel",
         action="store_true",
@@ -130,6 +143,13 @@ def parse_args():
     args = ap.parse_args()
     if args.overlay or args.depth_target:
         args.resolution = "full_vision"
+    args.action_chunk_size = 0
+    if args.policy_profile == "cyberwam":
+        if args.overlay or args.depth_target:
+            ap.error("--overlay/--depth-target are not supported with --policy-profile cyberwam yet")
+        args.resolution = "full_rgbd"
+        args.robot_frame_base_qvel = True  # 2026 demos (CyberWAM's training data) are robot frame
+        args.action_chunk_size = 32  # the server returns 32x23 and requires K=32 (or 0)
     return args
 
 
@@ -167,7 +187,7 @@ def main():
                 "_target_": "omnigibson.eval.policies.WebsocketPolicy",
                 "host": args.host,
                 "port": args.port,
-                "action_chunk_size": 0,
+                "action_chunk_size": args.action_chunk_size,
             },
             "headless": True,
             "partial_scene_load": not args.full_scene,

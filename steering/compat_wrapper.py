@@ -94,6 +94,19 @@ class CompatFullResWrapper(CompatWrapper):
         return {"modalities": ["rgb"], "resolution": resolution}
 
 
+class CyberWAMWrapper(CompatFullResWrapper):
+    """CyberWAM (2026 WAM, run_rollouts.py --policy-profile cyberwam): the fork-native RGBDFullResWrapper obs (RGB +
+    depth_linear, head 720x720 / wrists 480x480) with the fork's ROBOT-frame base_qvel (the 2026 demos it was trained
+    on are robot frame; NOTES "CyberWAM setup"), plus CompatWrapper's steering_seed / perturber / inject_target hooks.
+    run_rollouts.py must also leave world_frame_base_qvel False (it sets it per run)."""
+
+    world_frame_base_qvel = False
+
+    @classmethod
+    def camera_spec(cls) -> dict:
+        return {**super().camera_spec(), "modalities": ["rgb", "depth_linear"]}
+
+
 class SteerVisionWrapper(CompatFullResWrapper):
     """Full-res RGB + linear depth; the radio's 2D box in every camera is the projection of its 3D bounding box from
     the simulator (a stand-in for an object detector; seg_semantic segfaults this Isaac build, NOTES 2026-11-19).
