@@ -63,6 +63,10 @@ def summarize(root):
         paired = [k for k in succ if k in base]
         fs = sum(succ[k] and not base[k] for k in paired)
         sf = sum(base[k] and not succ[k] for k in paired)
+        b0 = {key(r): r["success"] == "1" for r in rows(f"{root}/B0_baseline/rollouts.csv")}
+        pb = [k for k in succ if k in b0]
+        b0_fs = sum(succ[k] and not b0[k] for k in pb)
+        b0_sf = sum(b0[k] and not succ[k] for k in pb)
         steps = [int(r["success_step"]) for r in rs if r["success"] == "1" and r["success_step"]]
         row = {
             "condition": name,
@@ -72,6 +76,9 @@ def summarize(root):
             "fail_to_success": fs,
             "success_to_fail": sf,
             "sign_p": round(sign_test(fs, sf), 3),
+            "b0_same_pairs": sum(b0[k] for k in pb),
+            "b0_flips": f"{b0_fs}/{b0_sf}",
+            "b0_sign_p": round(sign_test(b0_fs, b0_sf), 3),
             "median_success_step": int(st.median(steps)) if steps else None,
             "per_pair": {f"{k[0]}:{k[1]}": int(succ[k]) for k in sorted(succ)},
         }
@@ -95,7 +102,7 @@ def main():
     args = ap.parse_args()
     base, out = summarize(args.root)
     print(f"baseline (massD+massF, same pairs): {sum(base.values())}/{len(base)}")
-    print(f"{'condition':22s} succ    base(same)  F->S S->F  p      med step  extra")
+    print(f"{'condition':28s} succ    base(same)  F->S S->F  p      B0(same) F->S/S->F p      med step  extra")
     for r in out:
         extra = {
             k: r[k]
@@ -103,8 +110,9 @@ def main():
             if k in ("recoveries_fired", "recovered_then_succeeded", "depth_err_last_med_cm", "critic_spread_med_cm")
         }
         print(
-            f"{r['condition']:22s} {r['success']:2d}/{r['done']:<2d}   {r['baseline_same_pairs']:2d}/{r['done']:<2d}"
+            f"{r['condition']:28s} {r['success']:2d}/{r['done']:<2d}   {r['baseline_same_pairs']:2d}/{r['done']:<2d}"
             f"       {r['fail_to_success']:2d}   {r['success_to_fail']:2d}  {r['sign_p']:.3f}  "
+            f"{r['b0_same_pairs']:2d}       {r['b0_flips']:9s} {r['b0_sign_p']:.3f}  "
             f"{r['median_success_step'] or '-':>6}    {extra or ''}"
         )
     if args.json:
