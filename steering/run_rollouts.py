@@ -27,6 +27,7 @@ RADIO_2025_VAL = [242, 295, 211, 203, 109, 181, 197, 187, 214, 139]
 WRAPPERS = {
     "full": "steering.compat_wrapper.CompatFullResWrapper",
     "224": "steering.compat_wrapper.CompatWrapper",
+    "full_vision": "steering.compat_wrapper.SteerVisionWrapper",  # + seg/depth (auto with --overlay/--depth-target)
 }
 CSV_FIELDS = [
     "rollout",
@@ -106,6 +107,11 @@ def parse_args():
         help="Send the radio button position (robot frame) to the "
         "policy server each step, for its best-of-N critic (privileged information).",
     )
+    ap.add_argument("--overlay", choices=["tint", "dim"], default=None, help="Segmentation overlay on the RGB inputs.")
+    ap.add_argument(
+        "--depth-target", action="store_true", help="Send a depth+segmentation radio estimate as steering_target."
+    )
+    ap.add_argument("--recovery", action="store_true", help="Failure monitor + back off / re-approach / retry.")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--output-dir", required=True)
@@ -114,7 +120,10 @@ def parse_args():
     ap.add_argument(
         "--trace", action="store_true", help="Write a per-step diagnostic trace (steering/rollout_trace.py)."
     )
-    return ap.parse_args()
+    args = ap.parse_args()
+    if args.overlay or args.depth_target:
+        args.resolution = "full_vision"
+    return args
 
 
 def main():
@@ -189,6 +198,14 @@ def main():
             fields = fields + ["assist_interventions", "assist_log"]
         elif args.approach_assist is not None:
             fields = fields + ["approach_log"]
+        elif args.recovery:
+            fields = fields + ["recoveries", "recovery_log"]
+        vision = args.resolution == "full_vision"
+        if vision:
+            fields = fields + ["overlay", "depth_est_n", "depth_est_err_med_m", "depth_est_err_last_m"]
+            fields = fields + ["head_box_frac_med"]
+            evaluator.env.overlay = args.overlay
+            evaluator.env.depth_target = args.depth_target
         writer = csv.DictWriter(f, fieldnames=fields)
         if new_csv:
             writer.writeheader()
@@ -217,6 +234,11 @@ def main():
             from steering.align_assist import ApproachAssist
 
             assist = ApproachAssist(evaluator, standoff_m=args.approach_assist)
+            evaluator.policy.forward = assist.wrap(evaluator.policy.forward)
+        elif args.recovery:
+            from steering.align_assist import RecoveryAssist
+
+            assist = RecoveryAssist(evaluator)
             evaluator.policy.forward = assist.wrap(evaluator.policy.forward)
 
         tracer = None
@@ -249,6 +271,8 @@ def main():
             policy_time[0] = 0.0
             if assist is not None:
                 assist.reset()
+            if vision:
+                evaluator.env.reset_stats()
             if tracer is not None:
                 tracer.reset()
                 step_count[0] = 0
@@ -291,6 +315,8 @@ def main():
             }
             if assist is not None:
                 row.update(assist.summary())
+            if vision:
+                row.update(overlay=args.overlay or "", **evaluator.env.summary())
             if tracer is not None:
                 row["trace_path"], summary = tracer.finish(stem)
                 row.update(summary)

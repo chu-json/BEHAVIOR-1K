@@ -89,13 +89,26 @@ class ActionWiring:
       dims are delta stats (steering/delta_norm_stats.py).
     freeze_torso: hold the torso at its episode-start position (removes base pi0.5's torso folding).
     freeze_base: zero the base velocity (the policy only moves torso/arms; a client-side approach assist still drives).
+    noise_scale: scale the flow-matching initial noise (< 1 = sample closer to the mode; per-episode seeded).
     """
 
     # 61-d proprio (fork layout) -> 23-d action layout
     JOINTS = [(slice(3, 7), slice(53, 57)), (slice(7, 14), slice(3, 10)), (slice(15, 22), slice(28, 35))]
 
-    def __init__(self, policy, delta_joints=False, freeze_torso=False, best_of_n=1, freeze_base=False):
+    def __init__(
+        self,
+        policy,
+        delta_joints=False,
+        freeze_torso=False,
+        best_of_n=1,
+        freeze_base=False,
+        noise_scale=1.0,
+        noise_shape=None,
+    ):
         self.policy = policy
+        self.noise_scale = noise_scale
+        self.noise_shape = noise_shape
+        self.rng = np.random.default_rng(0)
         self.freeze_base = freeze_base
         self.delta_joints = delta_joints
         self.freeze_torso = freeze_torso
@@ -131,7 +144,11 @@ class ActionWiring:
         return float(best)
 
     def _one(self, batch):
-        out = self.policy.infer(batch)
+        if self.noise_scale != 1.0:
+            noise = self.noise_scale * self.rng.standard_normal(self.noise_shape).astype(np.float32)
+            out = self.policy.infer(batch, noise=noise)
+        else:
+            out = self.policy.infer(batch)
         a = np.array(out["actions"], dtype=np.float64, copy=True)
         q = np.asarray(batch["observation/state"], dtype=np.float64)
         if self.delta_joints:
@@ -185,6 +202,8 @@ class BatchedCometPolicy:
 
             # openpi Policy samples diffusion noise from self._rng (split on every infer call).
             self.openpi_policy._rng = jax.random.key(int(np.asarray(seed).reshape(-1)[0]))
+            if self.wiring is not None:
+                self.wiring.rng = np.random.default_rng(int(np.asarray(seed).reshape(-1)[0]))
             logging.info(f"Episode start: policy RNG seeded with {int(np.asarray(seed).reshape(-1)[0])}")
         self._need_seed = False
         if self.dump_dir and len(self.comet.action_queue) == 0:
@@ -224,6 +243,7 @@ def main():
     ap.add_argument("--delta-joints", action="store_true", help="See ActionWiring (needs delta norm stats).")
     ap.add_argument("--freeze-torso", action="store_true", help="Hold the torso at its episode-start position.")
     ap.add_argument("--freeze-base", action="store_true", help="Zero the policy's base velocity commands.")
+    ap.add_argument("--noise-scale", type=float, default=1.0, help="Scale of the flow-matching initial noise.")
     ap.add_argument(
         "--best-of-n",
         type=int,
@@ -244,17 +264,19 @@ def main():
     openpi_policy = _policy_config.create_trained_policy(train_config, args.ckpt)
     wiring = None
     inner = openpi_policy
-    if args.delta_joints or args.freeze_torso or args.freeze_base or args.best_of_n > 1:
+    if args.delta_joints or args.freeze_torso or args.freeze_base or args.best_of_n > 1 or args.noise_scale != 1.0:
         wiring = inner = ActionWiring(
             openpi_policy,
             delta_joints=args.delta_joints,
             freeze_torso=args.freeze_torso,
             best_of_n=args.best_of_n,
             freeze_base=args.freeze_base,
+            noise_scale=args.noise_scale,
+            noise_shape=(train_config.model.action_horizon, train_config.model.action_dim),
         )
         logging.info(
             f"ACTION WIRING: delta_joints={args.delta_joints} freeze_torso={args.freeze_torso} "
-            f"freeze_base={args.freeze_base} best_of_n={args.best_of_n}"
+            f"freeze_base={args.freeze_base} best_of_n={args.best_of_n} noise_scale={args.noise_scale}"
         )
     comet_policy = B1KPolicyWrapper(inner, task_name=args.task, control_mode=args.control_mode, max_len=args.max_len)
     if args.prompt is not None:

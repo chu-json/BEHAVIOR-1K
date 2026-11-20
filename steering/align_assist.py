@@ -9,6 +9,7 @@ Used via run_rollouts.py --align-assist.
 """
 
 import math
+import os
 
 import torch as th
 
@@ -227,3 +228,147 @@ class ApproachAssist:
 
     def summary(self):
         return {"approach_log": ";".join(f"{k}={v}" for k, v in self.log.items())}
+
+
+class RecoveryAssist:
+    """Failure monitor + retry (oracle-triggered for now). While the policy runs, watch two failure signals:
+      stall:  no new closest hand-to-button distance (by > `progress_m`) for `stall_steps` steps
+      pushed: radio moved > `pushed_m` from where it was at the last (re)approach while no hand grasps it
+    On a trigger: open the grippers (lets go of the radio) holding the arms where they are, back the base off to
+    `backoff_m`, then arms/torso back to their episode-start pose, re-approach to `standoff_m` facing the radio, settle, reset the policy's action
+    queue and hand over again. At most `max_recoveries` per episode. Used via run_rollouts.py --recovery.
+    """
+
+    def __init__(
+        self,
+        evaluator,
+        stall_steps=500,
+        progress_m=0.02,
+        pushed_m=0.25,
+        min_policy_steps=300,
+        standoff_m=0.8,
+        backoff_m=1.2,
+        max_recoveries=2,
+        home_steps=60,
+        max_phase_steps=400,
+    ):
+        self.ev = evaluator
+        self.p = dict(locals())
+        del self.p["self"], self.p["evaluator"]
+        if os.environ.get("STEER_RECOVERY_STALL"):  # debugging: force early triggers
+            self.p["stall_steps"] = self.p["min_policy_steps"] = int(os.environ["STEER_RECOVERY_STALL"])
+        self.align = AlignAssist(evaluator)
+        self.reset()
+
+    def reset(self):
+        self.state = "policy"
+        self.step = 0
+        self.home = None
+        self.count = 0
+        self.log = []
+        self._new_policy_segment()
+
+    def _new_policy_segment(self):
+        self.seg_start = self.step
+        self.best = float("inf")
+        self.best_step = self.step
+        self.radio0 = None
+
+    @property
+    def active(self):
+        return int(self.state != "policy")
+
+    def _signals(self):
+        from omnigibson.object_states import ToggledOn
+
+        acc = self.ev.instance_eval_states[0].env_accessor
+        robot = acc.robot
+        entity = acc.object_scope[RADIO_INST]
+        radio = getattr(entity, "wrapped_obj", entity)
+        button = radio.states[ToggledOn].marker.get_position_orientation()[0]
+        d = min(float(th.linalg.norm(robot.get_eef_position(arm) - button)) for arm in robot.arm_names)
+        grasping = any(robot.is_grasping(arm=arm, candidate_obj=radio).value > 0 for arm in robot.arm_names)
+        return robot, d, radio.get_position_orientation()[0], grasping
+
+    def _pose_action(self, robot):
+        a = (self.freeze if self.state in ("open", "backoff") else self.home).clone()
+        a[0, robot.controller_action_idx["base"]] = 0.0
+        return a
+
+    def wrap(self, forward):
+        def assisted_forward(*args, **kwargs):
+            self.step += 1
+            p = self.p
+            robot, d, rpos, grasping = self._signals()
+            if self.home is None:
+                self.home = ApproachAssist._hold_action(None, robot)  # episode-start arms/torso, grippers open
+            if self.state == "policy":
+                if self.radio0 is None:
+                    self.radio0 = rpos.clone()
+                if d < self.best - p["progress_m"]:
+                    self.best, self.best_step = d, self.step
+                ran = self.step - self.seg_start
+                stall = ran >= p["min_policy_steps"] and self.step - self.best_step >= p["stall_steps"]
+                pushed = not grasping and float(th.linalg.norm(rpos[:2] - self.radio0[:2])) > p["pushed_m"]
+                if self.count < p["max_recoveries"] and (stall or pushed):
+                    self.state, self.phase_start = "open", self.step
+                    self.freeze = ApproachAssist._hold_action(None, robot)  # current arms/torso, grippers open
+                    self._cur = {
+                        "start": self.step,
+                        "why": "stall" if stall else "pushed",
+                        "best_cm": round(100 * self.best, 1),
+                    }
+                else:
+                    return forward(*args, **kwargs)
+            _, x, y, yaw, err, dist, _ = self.align._pose()
+            a = self._pose_action(robot)
+            base = robot.controller_action_idx["base"]
+            n = self.step - self.phase_start
+            if self.state == "open":  # let go (grippers open), arms held where they are, base still
+                if n >= 20:
+                    self.state, self.phase_start = "backoff", self.step
+                return a
+            if self.state == "backoff":  # arms held; face the radio and reverse until backoff_m away
+                if dist >= p["backoff_m"] or n >= p["max_phase_steps"]:
+                    self.state, self.phase_start = "home", self.step
+                    return self._pose_action(robot)
+                else:
+                    wz = max(-0.6, min(0.6, 2.0 * err))
+                    a[0, base] = th.tensor([-0.25 if abs(err) < math.radians(45) else 0.0, 0.0, wz], dtype=a.dtype)
+                    return a
+            if self.state == "home":  # clear of the radio now: arms/torso back to the episode-start pose
+                if n >= p["home_steps"]:
+                    self.state, self.phase_start = "approach", self.step
+                return a
+            if self.state == "approach":
+                done = dist <= p["standoff_m"] + 0.05 and abs(math.degrees(err)) < 4.0
+                if done or n >= p["max_phase_steps"]:
+                    self.state, self.phase_start = "settle", self.step
+                else:
+                    wz = max(-0.6, min(0.6, 2.0 * err))
+                    v = 0.0
+                    if abs(err) < math.radians(25) and dist > p["standoff_m"]:
+                        v = max(0.05, min(0.3, 1.5 * (dist - p["standoff_m"])))
+                    a[0, base] = th.tensor([v, 0.0, wz], dtype=a.dtype)
+                    return a
+            if self.state == "settle":
+                if n < 10:
+                    return a
+                self._cur.update(end=self.step, dist=round(dist, 2), err=round(math.degrees(err), 1))
+                self.log.append(self._cur)
+                self.count += 1
+                self.state = "policy"
+                self._new_policy_segment()
+                self.ev.policy.reset()
+            return forward(*args, **kwargs)
+
+        return assisted_forward
+
+    def summary(self):
+        cur = [self._cur] if self.state != "policy" else []  # include one still in progress at episode end
+        return {
+            "recoveries": self.count,
+            "recovery_log": ";".join(
+                f"{c['start']}-{c.get('end', '?')}:{c['why']}(best {c['best_cm']}cm)" for c in self.log + cur
+            ),
+        }
