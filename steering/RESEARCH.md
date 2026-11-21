@@ -81,8 +81,10 @@ swing is about +-4/20, NOTES 2026-11-20).
 
 ## Plan
 Phase 0 — infrastructure (now)
-- [ ] Fine-tuning pipeline for pi0.5 on the 200 radio demos (steering/ft, LoRA on one 3090). In progress.
-- [ ] Download the radio videos incl. seg (in progress; unit `dl-radio`).
+- [x] Fine-tuning pipeline for pi0.5 on the 200 radio demos (steering/ft, LoRA on one 3090). First run `ft-radio`
+  (LoRA, bs16, 5000 steps, ~0.2 epoch) running 2026-11-20 16:50 -> ~03:00; 3090 is compute-bound at ~2.4 samples/s,
+  so undertraining is the main risk (next: stop-gradient prefix for a ~3x faster expert-only variant).
+- [x] Download the radio videos incl. seg; preprocessed to /home/behavior/ext/data/radio_ft (18 GB, masks for 3 cams).
 - [x] Perturbation tooling (steering/perturb.py; run_rollouts --clutter N / --occluder / --radio-yaw-deg): smoke test
   queued after V3. Button offset/size deferred: the visible button is part of the radio mesh (needs asset work).
 - [ ] Steerability suite runner: one command runs the taxonomy table for a given model/server.
