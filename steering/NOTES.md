@@ -671,3 +671,9 @@ challenge machines did 20-step inference per 32-step chunk; on a 3090 probably s
    that is what their reported radio number used.
 5. Is there any prompt variation in training (they say fixed template per task)? If not, language steerability is
    expected to be near zero - worth testing anyway with the cached variants.
+- V3 thin red outline, HEAD camera only (radio pixels and wrist views untouched): 6/20 (vs B0 0 F->S / 4 S->F;
+  vs old baselines 2/10, p=0.04). Even a minimal visual cue hurts fine-tuned Comet => input-side visual prompting
+  is not viable without training on it (motivates the outline-augmented fine-tune, RESEARCH.md M3.5).
+  Note: the radio is itself red; a red cue blends with it.
+- Perturbation smoke (steering/perturb.py): --clutter 6 --occluder on 242/s0 works (objects rest on the glass
+  coffee table around the radio, panel hides part of it; frame checked). Radio-yaw smoke run after it.
