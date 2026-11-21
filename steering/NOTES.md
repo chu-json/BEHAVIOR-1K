@@ -677,3 +677,86 @@ challenge machines did 20-step inference per 32-step chunk; on a 3090 probably s
   Note: the radio is itself red; a red cue blends with it.
 - Perturbation smoke (steering/perturb.py): --clutter 6 --occluder on 242/s0 works (objects rest on the glass
   coffee table around the radio, panel hides part of it; frame checked). Radio-yaw smoke run after it.
+
+## pi0.5 radio fine-tuning pipeline (2026-11-20) — steering/ft/
+Goal: fine-tune base pi0.5 (openpi JAX, via openpi-comet's training loop, no edits to openpi-comet/BEHAVIOR) on the
+200 2025 radio demos on the one 3090, servable by comet_server.py. Foundation for "fine-tune while preserving
+steerability" (outline/box augmentation from the demo segmentation, prompt augmentation).
+Files: `preprocess.py` (demos -> compact data), `radio_data.py` (dataset, RadioInputs/Outputs transforms, norm stats),
+`augment.py` (prompt/image augmentation hooks), `ft_config.py` (TrainConfigs in code), `ft_loader.py` (our data loader
+for openpi's train.py), `train_radio.py` (entry point), `eval_offline.py` (held-out demo action error),
+`probe.sh` (speed/memory probe), `launch_ft.sh` (old auto probe+launch script; superseded by the manual run below),
+`download_meta.py` (meta/episodes/*.json), `memwatch.sh`.
+**Representation** (identical at train and serve time, all in openpi transforms):
+- state 23-d in ACTION order (base vel 0:3, torso 3:7, L arm 7:14, L gripper width 14, R arm 15:22, R gripper 22).
+  Comet's b1k_policy puts both gripper widths last (state 21,22), which misaligns state and action dims, so we use our
+  own `RadioInputs` (accepts 23-d, the fork's 61-d proprio, or 2025 256-d). Base vel is rotated into the ROBOT frame
+  in the training data (2025 256-d stores world-frame; rotating by base_qpos yaw (256-d index 246) matches the
+  robot-frame action command to 0.004 vs 0.016 unrotated); the fork's eval proprio is robot-frame, so train == eval.
+- actions: torso + both arms as deltas from the current state (openpi DeltaActions/AbsoluteActions, mask
+  `DELTA_MASK=(-3, 11, -1, 7, -1)`), base vel + grippers absolute. Action horizon 32 (= Comet, for comparability).
+- norm: quantile stats of state + DELTA actions over the 200 demos (exact quantiles, every 2nd frame's 32-step chunk;
+  dims with q99-q01 < 1e-3 widened, only torso4) -> /home/behavior/ext/data/radio_ft/assets/radio_ft/norm_stats.json;
+  openpi copies it into each checkpoint's assets/radio_ft/. Delta arm actions are heavy-tailed: ~1% of normalized
+  values beyond |1.5|, max ~9 (fine; same as openpi's own delta configs).
+- images: head -> base_0_rgb, left/right wrist; openpi_client resize_with_pad to 224 (PIL bilinear: the exact
+  function Comet's B1KPolicyWrapper applies to full-res sim images at serve time). openpi's train-time image aug
+  (crop/rotate/color) runs inside the model as usual.
+- prompt: Comet's radio prompt via per-sample `prompt_fn(ctx)`; `--prompt-aug paraphrase` exists (50% paraphrases).
+- 5 demos held out for offline validation (`ft_config.HOLDOUT` = episodes 2880 2960 2970 2990 3000): train on 195.
+**Data** (`/home/behavior/ext/data/radio_ft`, 18 GB total; 430k frames): per episode `ep_<id>.npz` (state23, action,
+raw 256-d proprio, task_info), per camera `ep_<id>_<cam>.jpg.npy` + `.off.npy` (JPEG q95 224x224 bytes + offsets,
+mmap'd; 17.9 GB), `ep_<id>_seg.npz` (94 MB: radio + toggle-button masks packbits 224x224, boxes, pixel counts per
+camera). Loader: 23 batches/s of 16 with 4 workers on CPU (we need 0.15/s; training uses 1 worker).
+- Seg decoding: the 2025 seg_instance_id videos encode each id as a palette color (v3.7.2 obs_utils
+  `generate_yuv_palette` over the camera's `unique_ins_ids` from meta/episodes/*.json, written as rgb24); nearest
+  palette color via per-channel LUT = 100% agreement with the reference cdist decoder. Radio = instances whose object
+  name contains "radio" (body + `togglebutton` link, e.g. ids 8/9 in ep 10). H.265 chroma bleed made isolated
+  radio-colored pixels at other objects' edges -> 3x3 opening at full res (first seg pass discarded). Radio visible in
+  92% of head frames / 26% left wrist / 57% right wrist; button 44 / 13 / 8%. `augment.outline_radio` draws the
+  contour (checked visually), `augment.box_radio` the box; `--image-aug outline|outline_p50|box`.
+- Preprocessing: `preprocess.py --parts lowdim,rgb --workers 5` 20 min; `--parts seg --workers 5` 45 min.
+**Commands**:
+```bash
+cd /home/behavior/ext/openpi-comet
+.venv/bin/python /home/behavior/BEHAVIOR-1K/steering/ft/train_radio.py --compute-norm-stats
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.95 .venv/bin/python -u /home/behavior/BEHAVIOR-1K/steering/ft/train_radio.py \
+  --exp radio_lora_v1 --variant lora --batch-size 16 --steps 5000 --lr 5e-5 --warmup 250 --save-interval 500 \
+  --keep-period 1000 --workers 1            # variants: lora | lora_fv (SigLIP frozen) | expert | full
+# serve (output = absolute 23-d joint targets, Comet receding-horizon wrapper as before; do NOT add --delta-joints)
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.45 .venv/bin/python /home/behavior/BEHAVIOR-1K/steering/comet_server.py \
+  --ckpt /home/behavior/ext/ckpt/ft/radio_lora_v1/<step> --config steering_ft:radio_lora --port 8000
+# offline action error on the 5 held-out demos
+.venv/bin/python /home/behavior/BEHAVIOR-1K/steering/ft/eval_offline.py --ckpt <ckpt> --config radio_lora
+```
+**Speed / memory on the 3090** (bf16, remat, XLA mem fraction 0.95, EMA off):
+| variant | batch | fits | s/step | samples/s | GPU peak |
+|---|---|---|---|---|---|
+| lora (SigLIP trained fully, openpi default) | 32 | yes (XLA remat warnings) | 13-15 | ~2.3 | at the 22.4 GiB limit |
+| lora | 16 | yes | 6.7-6.9 | 2.4 | 17.8 GiB |
+| expert (PaliGemma frozen, action expert full) | 32 | yes | 11 | 2.9 | - |
+Compute-bound (GPU 100%, ~250 W): ~2.4 samples/s whatever the batch => ~85k samples in 10 h, i.e. ~0.2 epoch and
+~1% of Comet's full fine-tune (30k x 256 = 7.7M samples). Freezing PaliGemma ("expert") only gives ~20%: XLA does
+not prune the prefix backward pass. A big speed-up needs a stop-gradient on the prefix KV (model patch in steering/)
+or fewer image tokens.
+Host RAM: ~7-8 GB steady (1 worker), init loads the 12 GB fp32 base params, checkpoint save peaks the unit at ~22 GB
+(page cache included). A first probe with 4 workers was killed by systemd-oomd during the save (swap is full from
+desktop apps) -> 1 worker. Checkpoint = 9 GB (params 6 GB + train_state 3 GB).
+**Verified**: transforms round trip (delta -> normalize -> unnormalize -> absolute) exact to 6e-11; serving a 6-step
+checkpoint through comet_server.py `--config steering_ft:radio_lora` + `rlc_smoke_test.py --mode ws` on saved sim
+observations: SMOKE TEST OK, absolute targets, torso within 0.08 rad and arms within 0.44 rad of current proprio
+(model ~untrained); eval_offline plumbing OK (6-step model is worse than "hold current joints", as expected).
+**Broke / gotchas**: openpi-comet's TorchDataLoader and config import BEHAVIOR v3.7 modules -> own loader +
+comet_server's omnigibson shim, installed at import of ft_loader (also in spawned workers); stdin (`python -`)
+scripts hang with spawn workers; warmup must be < steps (optax cosine with negative decay steps; clamped);
+openpi's `--overwrite` wipes the exp dir (our args json goes to ckpt/ft/<exp>.args.json); `max_to_keep=1` +
+keep_period keeps multiples of keep_period plus the latest.
+**First run** (systemd unit `ft-radio`, started 2026-11-20 16:50, log /home/behavior/ext/logs/ft_radio.log, host-RAM
+log ft_radio_mem.log, `/home/behavior/ext/GPU_TRAINING` exists while it runs): lora, batch 16, 5000 steps (~80k
+samples, ~0.19 epoch), peak LR 5e-5 (2x openpi default because of the short budget), 250 warmup, cosine to 5e-6,
+checkpoints every 500 -> /home/behavior/ext/ckpt/ft/radio_lora_v1/<step> (kept: multiples of 1000 + latest; ~9 GB
+each). 7.0 s/step => expected finish ~03:00 2026-11-21. Step-500 save OK (unit peak 17.5 GB, >= 12.7 GB available).
+Loss (flow-matching MSE, normalized units): step 0 0.286, 50 0.217, 100 0.130, 150 0.089, 200 0.066, 300 0.055,
+400 0.049, 500 0.046.
+Next: eval_offline + closed-loop rollouts (comet_server `--config steering_ft:radio_lora`) on checkpoints when the GPU
+is free; if it is undertrained, options: lora_fv/expert with a prefix stop-gradient patch (~3x faster), longer runs.

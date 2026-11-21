@@ -228,7 +228,8 @@ def main():
     ap.add_argument(
         "--config",
         default="pi05_b1k-turning_on_radio_lr2.5e-6_step20k_sft",
-        help="openpi-comet TrainConfig name (the radio SFT config, as used in openpi-comet issue #1).",
+        help="openpi-comet TrainConfig name (the radio SFT config, as used in openpi-comet issue #1), or "
+        "steering_ft:<name> for a steering/ft fine-tune (e.g. steering_ft:radio_lora).",
     )
     ap.add_argument("--task", default="turning_on_radio")
     ap.add_argument("--port", type=int, default=8000)
@@ -259,7 +260,16 @@ def main():
     from openpi.shared.eval_b1k_wrapper import B1KPolicyWrapper
     from openpi.training import config as _config
 
-    train_config = _config.get_config(args.config)
+    if args.config.startswith("steering_ft:"):
+        # Our own fine-tunes (steering/ft/ft_config.py): same RadioInputs / delta->absolute transforms and norm stats
+        # (from <ckpt>/assets/radio_ft) as in training; the policy already outputs absolute 23-d joint targets.
+        assert not args.delta_joints, "steering_ft configs already convert delta joints to absolute"
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "ft"))
+        import ft_config
+
+        train_config = ft_config.get_config(args.config.split(":", 1)[1])
+    else:
+        train_config = _config.get_config(args.config)
     # Norm stats come from <ckpt>/assets/<asset_id>/norm_stats.json (the radio checkpoint ships its own).
     openpi_policy = _policy_config.create_trained_policy(train_config, args.ckpt)
     wiring = None
