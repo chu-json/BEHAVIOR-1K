@@ -760,3 +760,20 @@ Loss (flow-matching MSE, normalized units): step 0 0.286, 50 0.217, 100 0.130, 1
 400 0.049, 500 0.046.
 Next: eval_offline + closed-loop rollouts (comet_server `--config steering_ft:radio_lora`) on checkpoints when the GPU
 is free; if it is undertrained, options: lora_fv/expert with a prefix stop-gradient patch (~3x faster), longer runs.
+
+## ft-radio v1 results (2026-11-27)
+- `ft-radio` (LoRA, bs16, 5000 steps) finished 2026-11-21 02:33; final loss 0.029. Checkpoints 1000-4999 in
+  /home/behavior/ext/ckpt/ft/radio_lora_v1 (45 GB). Nothing ran on the GPU 11-21 -> 11-27 (no follow-up was queued).
+- Offline (eval_offline.py, 5 held-out demos, mean |pred - demo| over 32-step chunks; "hold" = keep current joints):
+
+  | group | step 1000 | step 4999 | hold |
+  |---|---|---|---|
+  | base vel | 0.027 | 0.023 | 0.031 (zero vel) |
+  | torso | 0.013 | 0.009 | 0.011 |
+  | left arm | 0.021 | 0.015 | 0.011 |
+  | right arm | 0.025 | 0.023 | 0.016 |
+  | right grip | 0.20 | 0.09 | - |
+- Arms are still worse than "hold still", also on *training* episodes (10-50: 0.051 vs 0.042 at k=31), so it is
+  not overfitting. No offset bug: pred[0] is within 0.002 rad of the current state. Reading: undertrained (0.2 epoch)
+  and/or sampling noise on slow joints; closed loop decides. Diagnostic: scratchpad arm_diag.py (per-chunk-step error).
+- Closed loop: steering/ft/ft_closed_loop.py CKPT NAME [N] [STEPS] (campaign harness, runs/ft/NAME).
