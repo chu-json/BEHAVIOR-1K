@@ -792,3 +792,17 @@ is free; if it is undertrained, options: lora_fv/expert with a prefix stop-gradi
   drifts). Full 20-pair eval of the released checkpoint: unit released-val20 -> runs/ft/released_val20.
 - **Released checkpoint, 20 val pairs (3000 steps, mentor_server K=16): 2/20** (successes: 211:2@2378 197:16@2450 ). Matches the
   mentor's ~10% and behavior26's Q=0.111. Typical failure: hand on the radio, no toggle, base drifts.
+
+## PressAssist (last-mile scripted press) development, 2026-11-27 evening
+Why: released checkpoint failures stall 12-22 cm from the button (right hand, on the radio but off the button);
+both of its successes got the left hand within 5 cm. steering/press_assist.py, run_rollouts --press-assist.
+- v1 (arm IK only, 15 cm trigger): never triggered. v2 (30 cm trigger): triggered, IK residual 7-22 cm (base too far).
+- v3 (closed-loop holonomic base puts the button at (0.45, +-0.2) m in the base frame, torso to reset pose, multi-
+  start IK): scripted mode (STEER_PRESS_SCRIPTED=1, no policy) **turns the radio on in 242:0 at step 220-271**;
+  FK eef == sim eef to 1 mm (frames verified). Button at z ~0.50 in the base frame; with the reset torso the arm
+  reaches 0.45 m ahead (0.5 m already misses by 2 cm).
+- Failure mode: driving the base straight to the front-face pose runs into the table when the front face points
+  away from the robot (295; 242 in policy mode) -> radio knocked to the floor (button z -0.25 / 0.03 in base frame),
+  torso then does not track. Needs: collision-aware base motion (go around the table / stop on contact), or use torso
+  joints in the IK (11-DOF) to reach without moving the base, and abort if the radio moves.
+- Smoke results with the policy (released ckpt, pairs 242:0/295:1): 0/2 for v1-v3. Not yet a steering result.
