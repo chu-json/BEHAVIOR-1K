@@ -230,7 +230,12 @@ def cmd_train(args):
             # systemd-oomd killed the run (2026-11-27). Checkpoints stay servable; --resume is not possible.
             import dataclasses
 
-            state = dataclasses.replace(state, opt_state=None)
+            from openpi.shared import array_typing as at
+
+            with at.disable_typechecking():
+                state = dataclasses.replace(state, opt_state={})
+            with at.disable_typechecking():
+                return orig_save(manager, state, data_loader, step)
         return orig_save(manager, state, data_loader, step)
 
     train._checkpoints.save_state = save_state

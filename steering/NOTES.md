@@ -809,3 +809,27 @@ both of its successes got the left hand within 5 cm. steering/press_assist.py, r
 - v4 (default mode "torso"; STEER_PRESS_MODE=front for v3): base only turns toward the button and drives straight
   in if it is > 0.85 m away; torso + arm IK (11 joints) reaches 0.8-0.9 m at table height (vs 0.45 m arm-only);
   aborts if the radio moves > 3 cm during base/pre. Offline IK verified; sim test pending (GPU given to ft-cont).
+
+## Continued fine-tune from released ckpt (2026-11-27) - unit ft-cont
+Route: the mentor's openpi (/home/behavior/ext/mentor/openpi @0cc8e35, untouched): its trainer
+scripts/b1k/train_b1k.py main() with a config built in steering/ft/mentor_ft.py and our preprocessed data through
+steering/ft/mentor_data.py (rebuilds the 61-d proprio so their own B1KInputs / MappedDeltaActions / z-score
+Normalize run). Checkpoints serve unchanged with steering/mentor_server.py.
+Recipe = behavior26 control arm (pi05_b1k_frozen_vlm; 9/20 on public test): init from released params + released
+norm stats, train only the action expert + action in/out proj + time MLP (0.430B params; SigLIP + PaliGemma frozen),
+AdamW, no EMA, cosine LR warmup 1000 -> 2.5e-5 -> 2.5e-6, bs32, seed 42, 6000 steps (192k samples, ~0.46 epoch).
+Validation:
+- Train-side vs serve-side inputs bit-identical; predictions identical (max diff 0.0) on 145 held-out chunks.
+- Released ckpt offline |pred-demo| beats "hold" on every group (base 0.021/0.031, torso 0.005/0.011, L arm
+  0.007/0.011, R arm 0.009/0.016) -> representation correct (our LoRA v1 did not beat hold on arms).
+- Norm stats: ours match the released ones except state base_qvel mean (released [-0.033, 0.031, -0.166] fits
+  neither dataset); kept released for train/serve consistency.
+- Prefix stop-gradient (frozen VLM prefix run once into a KV cache under stop_gradient): step-0 loss/grad-norm
+  identical to the original (0.1283 / 0.5343, same batch+noise); 3.8 s/step at bs32 vs ~11 without (3x). The
+  full-gradient parity script OOMs on 24 GB (both grads in one process).
+- First smoke run was killed by systemd-oomd during the checkpoint save (host RAM, optimizer state) -> added
+  `--params-only-save` (opt_state dropped from saves; no resume). Checkpoint 5.8 GB; served by mentor_server ->
+  rlc_smoke_test ws OK.
+Run: `ft_cont.sh --exp ft_cont --steps 6000 --batch-size 32 --prefix-stopgrad --params-only-save
+--save-interval 1000 --keep-period 2000` -> /home/behavior/ext/ckpt/ft_cont/pi05_b1k_frozen_vlm/ft_cont/<step>,
+log /home/behavior/ext/logs/ft_cont.log. Started 2026-11-27 ~20:05, ETA ~03:00.
