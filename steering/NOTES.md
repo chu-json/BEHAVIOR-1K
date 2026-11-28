@@ -847,3 +847,7 @@ log /home/behavior/ext/logs/ft_cont.log. Started 2026-11-27 ~20:05, ETA ~03:00.
   203:3 fail: IK fine, hand stopped 25 cm short - likely blocked). Base drives straight toward the button to
   0.85 m, torso+arm IK (residual 1-2 mm). Radio-moved abort fired twice in 295 then succeeded. => a fully scripted
   radio policy now works most of the time -> scripted demo generation for perturbed scenes is feasible.
+- **ft-cont step 5999 on the 20 val pairs: 9/20** (released 2/20, Comet B0 10/20). Paired vs released: 9 F->S,
+  2 S->F (p=0.065, sign test; the 2 S->F are the released ckpt's only successes 211:2, 197:16); vs Comet B0: 3/4
+  (p=1.0). Median success step 1935. Reproduces behavior26's 9/20 with the same recipe on our harness. This is our
+  own controllable radio policy at Comet level ("M2'": released init + frozen VLM, action expert trained).
