@@ -851,3 +851,14 @@ log /home/behavior/ext/logs/ft_cont.log. Started 2026-11-27 ~20:05, ETA ~03:00.
   2 S->F (p=0.065, sign test; the 2 S->F are the released ckpt's only successes 211:2, 197:16); vs Comet B0: 3/4
   (p=1.0). Median success step 1935. Reproduces behavior26's 9/20 with the same recipe on our harness. This is our
   own controllable radio policy at Comet level ("M2'": released init + frozen VLM, action expert trained).
+- PressAssist v4 + released policy (pairs 242:0, 295:1, 211:2, 203:3): **2/4** (released alone on the same pairs:
+  1/4). 203:3 is a new success: policy stalled 25 cm from the button, assist fired at t1086, radio on at t1209.
+  IK residual 1-2 mm in all four; 242/295 pressed without toggling (to check: finger contact vs marker).
+- Demo recorder (run_rollouts --record-demos): 2 scripted episodes (242:0 297 steps, 295:1 380 steps, both
+  success) in /home/behavior/ext/data/scripted_demos/rec_test, same format as radio_ft (RadioDataset(root=...)
+  loads it). => pipeline for scripted demos in perturbed scenes is ready.
+- Steerability suite on ft-cont 5999 (9 cells x 10 pairs) started 04:23 (runs/suite/ft_cont_5999/), ETA ~15:00.
+
+Next (proposed, after the suite): scripted demos in perturbed scenes (radio yaw 45/90/180, clutter, occluder) with
+STEER_PRESS_SCRIPTED=1 --record-demos --record-only-success, ~100-200 episodes; continue-train ft-cont on
+orig + scripted perturbed demos; measure S1/S2/S4 robustness gain vs language-steerability loss (H4 / trade-off).
