@@ -32,6 +32,15 @@ SEED_KEY, TARGET_KEY = "steering_seed", "steering_target"
 
 
 def load_network_utils():
+    import sys
+    import types
+
+    if "omnigibson" not in sys.modules:  # network_utils only needs gm.DEBUG; no OmniGibson in this venv
+        og = types.ModuleType("omnigibson")
+        og.__path__ = []
+        macros = types.ModuleType("omnigibson.macros")
+        macros.gm = types.SimpleNamespace(DEBUG=False)
+        sys.modules.update({"omnigibson": og, "omnigibson.macros": macros})
     spec = importlib.util.spec_from_file_location("fork_network_utils", FORK_NETWORK_UTILS)
     net = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(net)
