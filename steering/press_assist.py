@@ -23,6 +23,7 @@ Used via run_rollouts.py --press-assist.
 """
 
 import math
+import os
 import xml.etree.ElementTree as ET
 
 import numpy as np
@@ -31,6 +32,8 @@ import torch as th
 from steering.urdf_fk import ARM, TORSO, URDF, R1ProFK
 
 RADIO_INST = "radio_receiver.n.01_1"
+# Torso pose during the press: the robot's reset pose (button reachable 0.4-0.6 m ahead at table height with it).
+TORSO_PRESS = np.array([1.02, -1.45, -0.47, 0.0])
 
 
 def _limits(urdf=URDF):
@@ -100,7 +103,7 @@ class PressAssist:
         stall_steps=150,
         progress_m=0.01,
         min_policy_steps=300,
-        reach_x=0.55,
+        reach_x=0.45,
         arm_y=0.2,
         base_steps=300,
         pre_m=0.06,
@@ -114,6 +117,8 @@ class PressAssist:
         self.ev = evaluator
         self.p = dict(locals())
         del self.p["self"], self.p["evaluator"]
+        if os.environ.get("STEER_PRESS_SCRIPTED"):  # debugging / scripted demos: take over at once, no policy
+            self.p.update(always=True, near_m=10.0, min_policy_steps=0, base_steps=1500)
         self.ik = ArmIK()
         self.reset()
 
@@ -181,7 +186,8 @@ class PressAssist:
         goal_xy = (float(b[0]) - off[0], float(b[1]) - off[1])
         self.plan = dict(
             side=side,
-            torso=q[jidx["trunk"]],
+            torso=TORSO_PRESS.copy(),
+            torso0=q[jidx["trunk"]],
             arm_hold={k: q[jidx[f"arm_{k}"]] for k in ("left", "right")},
             goal=(goal_xy[0], goal_xy[1], yaw_goal),
         )
@@ -191,6 +197,12 @@ class PressAssist:
         n, b = self._normal(radio), button.cpu().float()
         P, side = self.plan, self.plan["side"]
         arm0 = P["arm_hold"][side]
+        tb = self._to_base(robot, b)
+        self.log.append(
+            f"t{self.step}:button_base=({tb[0]:.3f},{tb[1]:.3f},{tb[2]:.3f}),torso={np.round(P['torso'], 2).tolist()},"
+            f"eef_fk={np.round(self.ik.eef(side, P['torso'], arm0), 3).tolist()},"
+            f"eef_sim={np.round(self._to_base(robot, robot.get_eef_position(side)), 3).tolist()}"
+        )
         q_pre, r_pre = self.ik.solve(side, P["torso"], arm0, self._to_base(robot, b + self.p["pre_m"] * n))
         q_press, r_press = self.ik.solve(side, P["torso"], q_pre, self._to_base(robot, b - self.p["press_m"] * n))
         P.update(arm0=arm0, q_pre=q_pre, q_press=q_press)
@@ -199,7 +211,11 @@ class PressAssist:
     def _action(self, robot, arm_q=None, gripper=-1.0, base=(0.0, 0.0, 0.0)):
         a = th.zeros((1, robot.action_dim))
         P, idx = self.plan, robot.controller_action_idx
-        a[0, idx["trunk"]] = th.tensor(P["torso"], dtype=a.dtype)
+        torso = P["torso"]
+        if self.state == "base":  # move the torso to TORSO_PRESS over the first move_steps of the base phase
+            w = min(1.0, self.t / self.p["move_steps"])
+            torso = (1 - w) * P["torso0"] + w * P["torso"]
+        a[0, idx["trunk"]] = th.tensor(torso, dtype=a.dtype)
         for k in ("left", "right"):
             a[0, idx[f"arm_{k}"]] = th.tensor(P["arm_hold"][k], dtype=a.dtype)
             a[0, idx[f"gripper_{k}"]] = 1.0
@@ -210,16 +226,14 @@ class PressAssist:
         a[0, idx["base"]] = th.tensor(base, dtype=a.dtype)
         return a
 
-    def _base_cmd(self, robot):
-        """Robot-frame holonomic velocity toward the goal pose; returns (cmd, done)."""
-        gx, gy, gyaw = self.plan["goal"]
-        pos, quat = robot.get_position_orientation()
-        x, y, yaw = float(pos[0]), float(pos[1]), _yaw(quat)
-        ex, ey = gx - x, gy - y
-        c, s = math.cos(yaw), math.sin(yaw)
-        fx, fy = c * ex + s * ey, -s * ex + c * ey  # error in the robot frame
-        eyaw = _wrap(gyaw - yaw)
-        done = math.hypot(ex, ey) < 0.03 and abs(eyaw) < math.radians(4)
+    def _base_cmd(self, robot, radio, button):
+        """Robot-frame holonomic velocity that puts the button at (reach_x, +-arm_y) in the base frame while facing the
+        radio's front face; returns (cmd, done). Closed loop on the measured button position in the base frame."""
+        tb = self._to_base(robot, button)
+        ys = self.p["arm_y"] if self.plan["side"] == "left" else -self.p["arm_y"]
+        fx, fy = tb[0] - self.p["reach_x"], tb[1] - ys
+        eyaw = _wrap(self.plan["goal"][2] - _yaw(robot.get_position_orientation()[1]))
+        done = math.hypot(fx, fy) < 0.02 and abs(eyaw) < math.radians(4)
         clip = lambda v, m: max(-m, min(m, v))  # noqa: E731
         return (clip(1.5 * fx, 0.25), clip(1.5 * fy, 0.25), clip(2.0 * eyaw, 0.5)), done
 
@@ -239,14 +253,16 @@ class PressAssist:
                 if not on and self.count < p["max_presses"] and dmin < p["near_m"] and (p["always"] or stalled):
                     self.count += 1
                     self._start(robot, radio, button, d)
-                    self.state, self.t = "base", 0
+                    self.state, self.t, self._done_n = "base", 0, 0
                 else:
                     return forward(*args, **kwargs)
             self.t += 1
             P, m = self.plan, p["move_steps"]
             if self.state == "base":
-                cmd, done = self._base_cmd(robot)
-                if done or self.t >= p["base_steps"]:
+                cmd, done = self._base_cmd(robot, radio, button)
+                self._done_n = self._done_n + 1 if done else 0
+                if self._done_n >= 10 or self.t >= p["base_steps"]:
+                    done = self._done_n >= 10
                     self.log.append(f"t{self.step}:base_{'ok' if done else 'timeout'}")
                     self._ik(robot, radio, button)
                     self.state, self.t = "pre", 0
@@ -290,8 +306,7 @@ class PressAssist:
 
 if __name__ == "__main__":  # IK self-test (no sim): reach points in front of the robot at the policy's torso pose
     ik = ArmIK()
-    torso = np.array([1.08, -1.548, -0.531, 0.0])
     for side, y in (("left", 0.2), ("right", -0.2)):
-        for x in (0.5, 0.55, 0.61):
-            q, r = ik.solve(side, torso, np.zeros(7), np.array([x, y, 0.6]))
-            print(side, x, "residual", round(r, 4))
+        for x, z in ((0.45, 0.52), (0.5, 0.5), (0.55, 0.52), (0.45, 0.62)):
+            q, r = ik.solve(side, TORSO_PRESS, np.zeros(7), np.array([x, y, z]))
+            print(side, x, z, "residual", round(r, 4))
