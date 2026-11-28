@@ -865,3 +865,22 @@ orig + scripted perturbed demos; measure S1/S2/S4 robustness gain vs language-st
 - Suite (ft-cont 5999, first 10 val pairs, 3000 steps) scene cells: base 6/10, S1 clutter6 3/10, S2 occluder
   2/10, S4 yaw90 6/10. Rotation is tolerated; clutter and partial occlusion halve success or worse. Closest hand is
   mostly the left in base (9/10); radio lifted in ~7/10 base runs (like Comet). Language cells running.
+
+### Steerability suite, ft-cont step 5999 (2026-11-28; 10 val pairs x 9 cells, 3000 steps; steering/suite.py)
+| cell | success | closest hand L/R | radio lifted | median min finger-button dist (m) |
+|---|---|---|---|---|
+| base | 6/10 | 9/1 | 7 | 0.061 |
+| S1 clutter 6 | 3/10 | 7/3 | 5 | 0.157 |
+| S2 occluder | 2/10 | 5/5 | 5 | 0.114 |
+| S4 radio yaw 90 | 6/10 | 7/3 | 7 | 0.060 |
+| L3 paraphrase | 3/10 | 6/4 | 6 | 0.146 |
+| L garbage ("fold the towel...") | 5/10 | 5/5 | 6 | 0.143 |
+| L2 "using your left hand" | 7/10 | 7/3 | 8 | 0.063 |
+| L2 "using your right hand" | 4/10 | 8/2 | 7 | 0.137 |
+| L2 "without picking the radio up" | 3/10 | 5/5 | 7 | 0.130 |
+Readings (n=10 per cell, run-to-run noise ~+-2/10):
+- **Instruction-blind**: an unrelated instruction still turns the radio on 5/10; "right hand" still uses the left
+  8/10; "without picking up" still lifts 7/10. Language changes neither which hand nor whether the radio is
+  lifted -> the frozen-VLM radio fine-tune does not follow how-to language (H1-type result for M2').
+- Scene: rotation tolerated (6/10); clutter (3/10) and partial occlusion (2/10) hurt -> targets for the scripted
+  perturbed-demo fine-tune. Paraphrase 3/10 vs base 6/10 is within noise but worth re-checking.
