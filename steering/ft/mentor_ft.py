@@ -225,6 +225,12 @@ def cmd_train(args):
     def save_state(manager, state, data_loader, step):
         manager.wait_until_finished()
         prune_old_train_states(str(cfg.checkpoint_dir))
+        if args.params_only_save:
+            # Drop the optimizer state from the saved train_state: the full save pushed host RAM over the edge and
+            # systemd-oomd killed the run (2026-11-27). Checkpoints stay servable; --resume is not possible.
+            import dataclasses
+
+            state = dataclasses.replace(state, opt_state=None)
         return orig_save(manager, state, data_loader, step)
 
     train._checkpoints.save_state = save_state
@@ -402,6 +408,7 @@ def main():
     t.add_argument("--workers", type=int, default=1)
     t.add_argument("--seed", type=int, default=42)
     t.add_argument("--prefix-stopgrad", action="store_true")
+    t.add_argument("--params-only-save", action="store_true", help="save params (+step) only, no optimizer state")
     t.add_argument("--resume", action="store_true")
     t.add_argument("--overwrite", action="store_true")
     c = sub.add_parser("check-repr")
