@@ -839,3 +839,11 @@ log /home/behavior/ext/logs/ft_cont.log. Started 2026-11-27 ~20:05, ETA ~03:00.
    (4 pairs, 800 steps), ft-cont final ckpt on the 20 val pairs (runs/ft/ftcont_val20), PressAssist v4 + released
    policy (4 pairs) -> 3. after-ft2 (after_ft2.sh): steerability suite (steering/suite.py, 9 cells x 10 pairs) on the
    better of ft-cont / released (runs/suite/<model>/), then `suite.py --report` into logs/after_ft2.log.
+
+## Results 2026-11-28 early morning
+- ft-cont finished 02:04 (6000 steps, loss 0.128 -> ~0.033, GPU peak 14.4 GiB with prefix stop-grad). Kept ckpts
+  2000 / 4000 / 5999.
+- **PressAssist v4 scripted (no policy, STEER_PRESS_SCRIPTED=1): 3/4** (242:0 @297, 295:1 @380, 211:2 @440;
+  203:3 fail: IK fine, hand stopped 25 cm short - likely blocked). Base drives straight toward the button to
+  0.85 m, torso+arm IK (residual 1-2 mm). Radio-moved abort fired twice in 295 then succeeded. => a fully scripted
+  radio policy now works most of the time -> scripted demo generation for perturbed scenes is feasible.
