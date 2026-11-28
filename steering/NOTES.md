@@ -777,3 +777,13 @@ is free; if it is undertrained, options: lora_fv/expert with a prefix stop-gradi
   not overfitting. No offset bug: pred[0] is within 0.002 rad of the current state. Reading: undertrained (0.2 epoch)
   and/or sampling noise on slow joints; closed loop decides. Diagnostic: scratchpad arm_diag.py (per-chunk-step error).
 - Closed loop: steering/ft/ft_closed_loop.py CKPT NAME [N] [STEPS] (campaign harness, runs/ft/NAME).
+
+## Organisers' released pi0.5 radio checkpoint (= mentor's "vanilla pi0.5", 2026-11-27)
+- Source: https://behavior.stanford.edu/challenge/baselines.html "Provided checkpoints", pi0.5 turning_on_radio,
+  Google Drive id 1KojwNUz0HVwU3Ww2SVh3NKt-4asuI3y2 (17.3 GB archive). Trained with github.com/wensi-ai/openpi
+  (branch behavior, commit 0cc8e35, config pi05_b1k: full fine-tune, bs64, 50k steps, 2026 demos). behavior26
+  (huggingface imaan3/behavior26-pi05-radio) measured it at Q = 0.111 (n=27) and fine-tuned it to 9/20.
+- Fetch: unit dl-released -> /home/behavior/ext/mentor/released_pi05_radio. Env: uv sync in
+  /home/behavior/ext/mentor/openpi (unit mentor-env).
+- Serve: steering/mentor_server.py (their B1KPolicyWrapper, receding horizon K=16; robot_r1 -> robot key rename).
+- Deleted (user OK): ckpt/ft/tiny_lora, radio_lora_v1/{2000,3000,4000}.
