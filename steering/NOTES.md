@@ -806,3 +806,6 @@ both of its successes got the left hand within 5 cm. steering/press_assist.py, r
   torso then does not track. Needs: collision-aware base motion (go around the table / stop on contact), or use torso
   joints in the IK (11-DOF) to reach without moving the base, and abort if the radio moves.
 - Smoke results with the policy (released ckpt, pairs 242:0/295:1): 0/2 for v1-v3. Not yet a steering result.
+- v4 (default mode "torso"; STEER_PRESS_MODE=front for v3): base only turns toward the button and drives straight
+  in if it is > 0.85 m away; torso + arm IK (11 joints) reaches 0.8-0.9 m at table height (vs 0.45 m arm-only);
+  aborts if the radio moves > 3 cm during base/pre. Offline IK verified; sim test pending (GPU given to ft-cont).

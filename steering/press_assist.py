@@ -59,6 +59,7 @@ class ArmIK:
         self.fk = R1ProFK()
         lim = _limits()
         self.lim = {s: np.array([lim.get(n, (-np.pi, np.pi)) for n in ARM[s]]) for s in ARM}
+        self.tlim = {n: lim.get(n, (-np.pi, np.pi)) for n in TORSO}
 
     def eef(self, side, torso, arm):
         q = dict(zip(TORSO, torso))
@@ -95,6 +96,34 @@ class ArmIK:
         return min(sols, key=lambda s: s[1])
 
 
+    def solve_full(self, side, x0, target, iters=200, damp=0.05, step=0.5, restarts=6, seed=0):
+        """Torso (4) + arm (7) IK. x0 = r_[torso, arm]. Prefers the good solution closest to x0 (torso weighted x2)."""
+        tl = np.array([self.tlim[n] for n in TORSO])
+        lo, hi = np.r_[tl[:, 0], self.lim[side][:, 0]], np.r_[tl[:, 1], self.lim[side][:, 1]]
+        rng = np.random.default_rng(seed)
+        f = lambda x: self.eef(side, x[:4], x[4:])  # noqa: E731
+        sols = []
+        for s0 in [np.asarray(x0, dtype=np.float64)] + [lo + (hi - lo) * rng.uniform(0.3, 0.7, 11) for _ in range(restarts)]:
+            x = np.clip(s0.copy(), lo, hi)
+            for _ in range(iters):
+                p = f(x)
+                e = target - p
+                if np.linalg.norm(e) < 2e-3:
+                    break
+                J = np.zeros((3, 11))
+                for k in range(11):
+                    d = x.copy()
+                    d[k] += 1e-4
+                    J[:, k] = (f(d) - p) / 1e-4
+                x = np.clip(x + step * J.T @ np.linalg.solve(J @ J.T + damp**2 * np.eye(3), e), lo, hi)
+            sols.append((x, float(np.linalg.norm(target - f(x)))))
+        w = np.r_[2 * np.ones(4), np.ones(7)]
+        good = [s for s in sols if s[1] < 5e-3]
+        if good:
+            return min(good, key=lambda s: np.linalg.norm(w * (s[0] - x0)))
+        return min(sols, key=lambda s: s[1])
+
+
 class PressAssist:
     def __init__(
         self,
@@ -113,12 +142,17 @@ class PressAssist:
         back_steps=25,
         max_presses=3,
         always=False,
+        mode="torso",
+        approach_max=0.85,
+        radio_abort_m=0.03,
     ):
         self.ev = evaluator
         self.p = dict(locals())
         del self.p["self"], self.p["evaluator"]
         if os.environ.get("STEER_PRESS_SCRIPTED"):  # debugging / scripted demos: take over at once, no policy
             self.p.update(always=True, near_m=10.0, min_policy_steps=0, base_steps=1500)
+        if os.environ.get("STEER_PRESS_MODE"):
+            self.p["mode"] = os.environ["STEER_PRESS_MODE"]
         self.ik = ArmIK()
         self.reset()
 
@@ -169,7 +203,11 @@ class PressAssist:
         return n / (th.linalg.norm(n) + 1e-9)
 
     def _start(self, robot, radio, button, d):
-        """Choose the arm, freeze the current arm/torso pose, and set the base goal facing the front face."""
+        """Choose the arm, freeze the current pose, set the base goal.
+        mode "front": base goes to squarely face the radio's front face with the button at (reach_x, +-arm_y), torso to
+                      TORSO_PRESS (v3; can drive into the table when the front face points away).
+        mode "torso": base only turns to face the button and drives straight toward it if it is farther than
+                      approach_max; the reach is done by torso + arm IK (11 joints)."""
         side = min(d, key=d.get)
         side = "left" if "left" in side else "right"
         jidx = robot.controller_joint_idx
@@ -179,63 +217,84 @@ class PressAssist:
         bxy = robot.get_position_orientation()[0].cpu().float()[:2]
         to_robot = bxy - b[:2]
         facing = float((n[:2] @ to_robot) / (th.linalg.norm(to_robot) + 1e-9))
-        yaw_goal = math.atan2(-float(n[1]), -float(n[0]))  # look at the front face
-        ys = self.p["arm_y"] if side == "left" else -self.p["arm_y"]
-        c, s = math.cos(yaw_goal), math.sin(yaw_goal)
-        off = (c * self.p["reach_x"] - s * ys, s * self.p["reach_x"] + c * ys)
-        goal_xy = (float(b[0]) - off[0], float(b[1]) - off[1])
-        self.plan = dict(
-            side=side,
-            torso=TORSO_PRESS.copy(),
-            torso0=q[jidx["trunk"]],
-            arm_hold={k: q[jidx[f"arm_{k}"]] for k in ("left", "right")},
-            goal=(goal_xy[0], goal_xy[1], yaw_goal),
-        )
-        self.log.append(f"t{self.step}:{side},d={d[side]:.3f},face={facing:.2f}")
+        torso0 = q[jidx["trunk"]]
+        P = dict(side=side, torso0=torso0, arm_hold={k: q[jidx[f"arm_{k}"]] for k in ("left", "right")})
+        P["radio0"] = radio.get_position_orientation()[0].cpu().float().clone()
+        if self.p["mode"] == "front":
+            yaw_goal = math.atan2(-float(n[1]), -float(n[0]))  # look at the front face
+            P["torso"] = TORSO_PRESS.copy()
+        else:
+            yaw_goal = math.atan2(-float(to_robot[1]), -float(to_robot[0]))  # look at the button
+            P["torso"] = torso0.copy()
+        P["goal"] = (None, None, yaw_goal)
+        self.plan = P
+        self.log.append(f"t{self.step}:{side},{self.p['mode']},d={d[side]:.3f},face={facing:.2f}")
 
     def _ik(self, robot, radio, button):
         n, b = self._normal(radio), button.cpu().float()
         P, side = self.plan, self.plan["side"]
-        arm0 = P["arm_hold"][side]
+        x0 = np.r_[P["torso"], P["arm_hold"][side]]
         tb = self._to_base(robot, b)
         self.log.append(
             f"t{self.step}:button_base=({tb[0]:.3f},{tb[1]:.3f},{tb[2]:.3f}),torso={np.round(P['torso'], 2).tolist()},"
-            f"eef_fk={np.round(self.ik.eef(side, P['torso'], arm0), 3).tolist()},"
+            f"eef_fk={np.round(self.ik.eef(side, x0[:4], x0[4:]), 3).tolist()},"
             f"eef_sim={np.round(self._to_base(robot, robot.get_eef_position(side)), 3).tolist()}"
         )
-        q_pre, r_pre = self.ik.solve(side, P["torso"], arm0, self._to_base(robot, b + self.p["pre_m"] * n))
-        q_press, r_press = self.ik.solve(side, P["torso"], q_pre, self._to_base(robot, b - self.p["press_m"] * n))
-        P.update(arm0=arm0, q_pre=q_pre, q_press=q_press)
-        self.log.append(f"t{self.step}:ik_pre={r_pre:.3f},ik_press={r_press:.3f}")
+        pre_b = self._to_base(robot, b + self.p["pre_m"] * n)
+        press_b = self._to_base(robot, b - self.p["press_m"] * n)
+        if self.p["mode"] == "front":
+            q_pre, r_pre = self.ik.solve(side, P["torso"], x0[4:], pre_b)
+            q_press, r_press = self.ik.solve(side, P["torso"], q_pre, press_b)
+            x_pre, x_press = np.r_[P["torso"], q_pre], np.r_[P["torso"], q_press]
+        else:
+            x_pre, r_pre = self.ik.solve_full(side, x0, pre_b)
+            x_press, r_press = self.ik.solve_full(side, x_pre, press_b)
+        P.update(x0=x0, x_pre=x_pre, x_press=x_press)
+        self.log.append(
+            f"t{self.step}:ik_pre={r_pre:.3f},ik_press={r_press:.3f},torso_pre={np.round(x_pre[:4], 2).tolist()}"
+        )
 
-    def _action(self, robot, arm_q=None, gripper=-1.0, base=(0.0, 0.0, 0.0)):
+    def _action(self, robot, x=None, gripper=-1.0, base=(0.0, 0.0, 0.0)):
+        """x = r_[torso(4), arm(7)] for the pressing arm; None = hold (torso per phase)."""
         a = th.zeros((1, robot.action_dim))
         P, idx = self.plan, robot.controller_action_idx
         torso = P["torso"]
-        if self.state == "base":  # move the torso to TORSO_PRESS over the first move_steps of the base phase
+        if self.state == "base":  # front mode: move the torso to TORSO_PRESS during the base phase
             w = min(1.0, self.t / self.p["move_steps"])
             torso = (1 - w) * P["torso0"] + w * P["torso"]
-        a[0, idx["trunk"]] = th.tensor(torso, dtype=a.dtype)
         for k in ("left", "right"):
             a[0, idx[f"arm_{k}"]] = th.tensor(P["arm_hold"][k], dtype=a.dtype)
             a[0, idx[f"gripper_{k}"]] = 1.0
-        if arm_q is not None:
+        if x is not None:
+            torso = x[:4]
             s = P["side"]
-            a[0, idx[f"arm_{s}"]] = th.tensor(arm_q, dtype=a.dtype)
+            a[0, idx[f"arm_{s}"]] = th.tensor(x[4:], dtype=a.dtype)
             a[0, idx[f"gripper_{s}"]] = gripper
+        a[0, idx["trunk"]] = th.tensor(np.asarray(torso), dtype=a.dtype)
         a[0, idx["base"]] = th.tensor(base, dtype=a.dtype)
         return a
 
     def _base_cmd(self, robot, radio, button):
-        """Robot-frame holonomic velocity that puts the button at (reach_x, +-arm_y) in the base frame while facing the
-        radio's front face; returns (cmd, done). Closed loop on the measured button position in the base frame."""
+        """Robot-frame holonomic base velocity; returns (cmd, done). Closed loop on the button position in the base
+        frame. front: put the button at (reach_x, +-arm_y) and face the front face. torso: face the button, approach
+        straight to approach_max if farther."""
         tb = self._to_base(robot, button)
-        ys = self.p["arm_y"] if self.plan["side"] == "left" else -self.p["arm_y"]
-        fx, fy = tb[0] - self.p["reach_x"], tb[1] - ys
-        eyaw = _wrap(self.plan["goal"][2] - _yaw(robot.get_position_orientation()[1]))
-        done = math.hypot(fx, fy) < 0.02 and abs(eyaw) < math.radians(4)
         clip = lambda v, m: max(-m, min(m, v))  # noqa: E731
-        return (clip(1.5 * fx, 0.25), clip(1.5 * fy, 0.25), clip(2.0 * eyaw, 0.5)), done
+        if self.p["mode"] == "front":
+            ys = self.p["arm_y"] if self.plan["side"] == "left" else -self.p["arm_y"]
+            fx, fy = tb[0] - self.p["reach_x"], tb[1] - ys
+            eyaw = _wrap(self.plan["goal"][2] - _yaw(robot.get_position_orientation()[1]))
+            done = math.hypot(fx, fy) < 0.02 and abs(eyaw) < math.radians(4)
+            return (clip(1.5 * fx, 0.25), clip(1.5 * fy, 0.25), clip(2.0 * eyaw, 0.5)), done
+        eyaw = math.atan2(tb[1], tb[0])
+        dist = math.hypot(tb[0], tb[1])
+        far = dist - (self.p["approach_max"] - 0.1)
+        v = clip(1.5 * far, 0.2) if dist > self.p["approach_max"] and abs(eyaw) < math.radians(20) else 0.0
+        done = abs(eyaw) < math.radians(5) and dist <= self.p["approach_max"]
+        return (v, 0.0, clip(2.0 * eyaw, 0.5)), done
+
+    def _radio_moved(self, radio):
+        return float(th.linalg.norm(radio.get_position_orientation()[0].cpu().float() - self.plan["radio0"]))
 
     def wrap(self, forward):
         def assisted_forward(*args, **kwargs):
@@ -258,6 +317,12 @@ class PressAssist:
                     return forward(*args, **kwargs)
             self.t += 1
             P, m = self.plan, p["move_steps"]
+            if self.state in ("base", "pre") and self._radio_moved(radio) > p["radio_abort_m"]:
+                self.log.append(f"t{self.step}:abort_radio_moved({self._radio_moved(radio):.3f})")
+                self.state = "policy"
+                self._segment()
+                self.ev.policy.reset()
+                return forward(*args, **kwargs)
             if self.state == "base":
                 cmd, done = self._base_cmd(robot, radio, button)
                 self._done_n = self._done_n + 1 if done else 0
@@ -270,32 +335,31 @@ class PressAssist:
                 return self._action(robot, base=cmd)
             if self.state == "pre":
                 a = min(1.0, self.t / m)
-                q = (1 - a) * P["arm0"] + a * P["q_pre"]
                 if self.t >= m + 5:
                     self.state, self.t = "press", 0
-                return self._action(robot, q)
+                return self._action(robot, (1 - a) * P["x0"] + a * P["x_pre"])
             if self.state == "press":
                 a = min(1.0, self.t / m)
-                q = (1 - a) * P["q_pre"] + a * P["q_press"]
+                x = (1 - a) * P["x_pre"] + a * P["x_press"]
                 if on:
                     self.log.append(f"t{self.step}:ON(press)")
                     self.state, self.t = "back", 0
                 elif self.t >= m:
                     self.state, self.t = "hold", 0
-                return self._action(robot, q)
+                return self._action(robot, x)
             if self.state == "hold":
                 if on or self.t >= p["hold_steps"]:
                     self.log.append(f"t{self.step}:{'ON' if on else 'no-toggle'}(hold),d={min(d.values()):.3f}")
                     self.state, self.t = "back", 0
-                return self._action(robot, P["q_press"])
+                return self._action(robot, P["x_press"])
             if self.state == "back":
                 a = min(1.0, self.t / p["back_steps"])
-                q = (1 - a) * P["q_press"] + a * P["q_pre"]
+                x = (1 - a) * P["x_press"] + a * P["x_pre"]
                 if self.t >= p["back_steps"]:
                     self.state = "policy"
                     self._segment()
                     self.ev.policy.reset()
-                return self._action(robot, q)
+                return self._action(robot, x)
             return forward(*args, **kwargs)
 
         return assisted_forward
@@ -309,4 +373,5 @@ if __name__ == "__main__":  # IK self-test (no sim): reach points in front of th
     for side, y in (("left", 0.2), ("right", -0.2)):
         for x, z in ((0.45, 0.52), (0.5, 0.5), (0.55, 0.52), (0.45, 0.62)):
             q, r = ik.solve(side, TORSO_PRESS, np.zeros(7), np.array([x, y, z]))
-            print(side, x, z, "residual", round(r, 4))
+            x11, r11 = ik.solve_full(side, np.r_[TORSO_PRESS, np.zeros(7)], np.array([x + 0.35, y, z]))
+            print(side, x, z, "arm-only residual", round(r, 4), "| torso+arm at x+0.35:", round(r11, 4))
