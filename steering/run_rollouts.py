@@ -128,6 +128,8 @@ def parse_args():
         "--depth-target", action="store_true", help="Send a depth+segmentation radio estimate as steering_target."
     )
     ap.add_argument("--recovery", action="store_true", help="Failure monitor + back off / re-approach / retry.")
+    ap.add_argument("--record-demos", default=None, help="Save each rollout as a demo (steering/demo_recorder.py).")
+    ap.add_argument("--record-only-success", action="store_true")
     ap.add_argument(
         "--press-assist", action="store_true", help="Last-mile scripted IK press when the hand stalls near the button."
     )
@@ -247,6 +249,8 @@ def main():
             fields = fields + ["recoveries", "recovery_log"]
         elif args.press_assist:
             fields = fields + ["presses", "press_log"]
+        if args.record_demos:
+            fields = fields + ["demo_id"]
         vision = args.resolution == "full_vision"
         if vision:
             fields = fields + ["overlay", "depth_est_n", "depth_est_err_med_m", "depth_est_err_last_m"]
@@ -297,6 +301,13 @@ def main():
             assist = PressAssist(evaluator)
             evaluator.policy.forward = assist.wrap(evaluator.policy.forward)
 
+        recorder = None
+        if args.record_demos:
+            from steering.demo_recorder import DemoRecorder
+
+            recorder = DemoRecorder(args.record_demos, only_success=args.record_only_success)
+            evaluator.policy.forward = recorder.wrap(evaluator.policy.forward)
+
         tracer = None
         if args.trace:
             from steering.rollout_trace import RolloutTracer
@@ -327,6 +338,8 @@ def main():
             policy_time[0] = 0.0
             if assist is not None:
                 assist.reset()
+            if recorder is not None:
+                recorder.reset()
             if vision:
                 evaluator.env.reset_stats()
             if tracer is not None:
@@ -375,6 +388,8 @@ def main():
                 row["perturb"] = ";".join(f"{k}={v}" for k, v in evaluator.env.perturb_log.items())
             if vision:
                 row.update(overlay=f"{args.overlay or ''}:{args.overlay_cams}", **evaluator.env.summary())
+            if recorder is not None:
+                row["demo_id"] = recorder.finish(instance, seed, success)
             if tracer is not None:
                 row["trace_path"], summary = tracer.finish(stem)
                 row.update(summary)
