@@ -790,3 +790,5 @@ is free; if it is undertrained, options: lora_fv/expert with a prefix stop-gradi
 - Smoke (val pairs 242:0, 295:1, 3000 steps): our lora_v1 step 4999 0/2 (navigates to the table, reaches near the
   radio, drifts off); released baseline 0/2 (reaches the radio fast, right hand on the radio, never toggles, base
   drifts). Full 20-pair eval of the released checkpoint: unit released-val20 -> runs/ft/released_val20.
+- **Released checkpoint, 20 val pairs (3000 steps, mentor_server K=16): 2/20** (successes: 211:2@2378 197:16@2450 ). Matches the
+  mentor's ~10% and behavior26's Q=0.111. Typical failure: hand on the radio, no toggle, base drifts.
