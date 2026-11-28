@@ -128,6 +128,9 @@ def parse_args():
         "--depth-target", action="store_true", help="Send a depth+segmentation radio estimate as steering_target."
     )
     ap.add_argument("--recovery", action="store_true", help="Failure monitor + back off / re-approach / retry.")
+    ap.add_argument(
+        "--press-assist", action="store_true", help="Last-mile scripted IK press when the hand stalls near the button."
+    )
     ap.add_argument("--clutter", type=int, default=0, help="Distractor objects around the radio (steering/perturb.py).")
     ap.add_argument("--occluder", action="store_true", help="Panel partially hiding the radio from the start view.")
     ap.add_argument("--radio-yaw-deg", type=float, default=0.0, help="Rotate the radio at episode start.")
@@ -242,6 +245,8 @@ def main():
             fields = fields + ["approach_log"]
         elif args.recovery:
             fields = fields + ["recoveries", "recovery_log"]
+        elif args.press_assist:
+            fields = fields + ["presses", "press_log"]
         vision = args.resolution == "full_vision"
         if vision:
             fields = fields + ["overlay", "depth_est_n", "depth_est_err_med_m", "depth_est_err_last_m"]
@@ -285,6 +290,11 @@ def main():
             from steering.align_assist import RecoveryAssist
 
             assist = RecoveryAssist(evaluator)
+            evaluator.policy.forward = assist.wrap(evaluator.policy.forward)
+        elif args.press_assist:
+            from steering.press_assist import PressAssist
+
+            assist = PressAssist(evaluator)
             evaluator.policy.forward = assist.wrap(evaluator.policy.forward)
 
         tracer = None
