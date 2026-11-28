@@ -102,6 +102,30 @@ Phase 3 — WAM on the same suite once weights are available.
   - [ ] baseline radio val10 x 2 seeds, then the steerability suite (prompt variants first)
 Decision point after Phase 1: pick the 2-3 steerability types where models differ most and focus there.
 
+
+## Update 2026-11-27: plan after the first fine-tunes
+State: our LoRA-from-base run (ft-radio v1, ~0.2 epoch) 0/2 in closed loop; the organisers' released pi0.5 radio
+checkpoint (= the mentor's vanilla fine-tune) ~1/9 so far on our 20 pairs: it reaches the radio and stalls at the
+press. Comet ~50%, RLC 40%.
+Diagnosis: not a data-quantity problem (Comet reaches ~50% with the same 200 demos; behavior26 took the released
+checkpoint to 45% with 6k frozen-VLM steps on the same demos). Initialisation + recipe + last-cm precision.
+
+Workstreams (in order):
+1. **Competent controllable base (M2')**: continue-train the released checkpoint with the VLM frozen (behavior26
+   recipe) -> unit ft-cont. Target 40-50% on our 20 pairs. Frozen VLM is also the steerability-preserving variant
+   we wanted to test (knowledge-insulation-like), so M2' doubles as the first M3 point.
+2. **Last-mile steering (PressAssist, steering/press_assist.py)**: policy drives/reaches, scripted IK press when the
+   hand stalls within 15 cm of the button. Oracle-localized for now (the button position comes from the sim); if it
+   works, swap in a perception estimate (depth + detection, as in S2). Fits the "last-mile deployment" theme
+   directly: a failure-triggered, local intervention instead of whole-trajectory steering. Related:
+   shared autonomy / residual & corrective policies (see LITERATURE.md: RoboMonkey, V-GPS, FOREWARN; add "last-
+   mile" refs).
+3. **Steerability suite (Phase 1)** on Comet, released, M2': L1-L3 prompts + S1/S2/S4 perturbations (tools ready).
+4. **Scripted demos for perturbed/geometry variants**: ApproachAssist + PressAssist = a full scripted radio policy;
+   record demos with radio yaw / clutter / occluder (and later button geometry) -> fine-tune and measure whether
+   behavior-changing robustness can be added while steerability is kept (H4). Toggle primitive in OmniGibson is not
+   implemented and curobo is not installed, hence our own IK press.
+
 ## What the literature says (details: LITERATURE.md, 2026-11-20 survey)
 - Closest prior work: "Flatness Preserves Instruction Following in VLAs" (arXiv 2606.23641) names "instruction
   blindness" after fine-tuning and fixes it with sharpness-aware minimisation; Knowledge Insulation (2505.23705),
