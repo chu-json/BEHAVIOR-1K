@@ -787,3 +787,6 @@ is free; if it is undertrained, options: lora_fv/expert with a prefix stop-gradi
   /home/behavior/ext/mentor/openpi (unit mentor-env).
 - Serve: steering/mentor_server.py (their B1KPolicyWrapper, receding horizon K=16; robot_r1 -> robot key rename).
 - Deleted (user OK): ckpt/ft/tiny_lora, radio_lora_v1/{2000,3000,4000}.
+- Smoke (val pairs 242:0, 295:1, 3000 steps): our lora_v1 step 4999 0/2 (navigates to the table, reaches near the
+  radio, drifts off); released baseline 0/2 (reaches the radio fast, right hand on the radio, never toggles, base
+  drifts). Full 20-pair eval of the released checkpoint: unit released-val20 -> runs/ft/released_val20.
