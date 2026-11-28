@@ -862,3 +862,6 @@ log /home/behavior/ext/logs/ft_cont.log. Started 2026-11-27 ~20:05, ETA ~03:00.
 Next (proposed, after the suite): scripted demos in perturbed scenes (radio yaw 45/90/180, clutter, occluder) with
 STEER_PRESS_SCRIPTED=1 --record-demos --record-only-success, ~100-200 episodes; continue-train ft-cont on
 orig + scripted perturbed demos; measure S1/S2/S4 robustness gain vs language-steerability loss (H4 / trade-off).
+- Suite (ft-cont 5999, first 10 val pairs, 3000 steps) scene cells: base 6/10, S1 clutter6 3/10, S2 occluder
+  2/10, S4 yaw90 6/10. Rotation is tolerated; clutter and partial occlusion halve success or worse. Closest hand is
+  mostly the left in base (9/10); radio lifted in ~7/10 base runs (like Comet). Language cells running.
