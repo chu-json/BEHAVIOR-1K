@@ -833,3 +833,9 @@ Validation:
 Run: `ft_cont.sh --exp ft_cont --steps 6000 --batch-size 32 --prefix-stopgrad --params-only-save
 --save-interval 1000 --keep-period 2000` -> /home/behavior/ext/ckpt/ft_cont/pi05_b1k_frozen_vlm/ft_cont/<step>,
 log /home/behavior/ext/logs/ft_cont.log. Started 2026-11-27 ~20:05, ETA ~03:00.
+
+## Overnight queue 2026-11-27 -> 28 (all systemd user units, GPU_LOCK protocol)
+1. ft-cont (training, ETA ~02:10) -> 2. after-ft (/home/behavior/ext/logs/after_ft.sh): PressAssist v4 scripted
+   (4 pairs, 800 steps), ft-cont final ckpt on the 20 val pairs (runs/ft/ftcont_val20), PressAssist v4 + released
+   policy (4 pairs) -> 3. after-ft2 (after_ft2.sh): steerability suite (steering/suite.py, 9 cells x 10 pairs) on the
+   better of ft-cont / released (runs/suite/<model>/), then `suite.py --report` into logs/after_ft2.log.
